@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cubo Digital — Valorización de Proyectos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              900: '#0d0d1a',
+              800: '#1a1a2e',
+              700: '#16213e',
+              600: '#0f3460',
+            },
+            brand: '#f97316',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #1a1a2e; }
+    .card { background: #16213e; border: 1px solid rgba(249,115,22,0.15); }
+    .spinner {
+      border: 3px solid rgba(249,115,22,0.2);
+      border-top-color: #f97316;
+      border-radius: 50%;
+      width: 28px; height: 28px;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .badge-active    { background:#064e3b; color:#34d399; }
+    .badge-completed { background:#1e1b4b; color:#818cf8; }
+    .badge-paused    { background:#431407; color:#fb923c; }
+    input, select, textarea {
+      background: #0d0d1a;
+      border: 1px solid rgba(249,115,22,0.3);
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 8px 12px;
+      width: 100%;
+      outline: none;
+      transition: border-color .2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: #f97316;
+    }
+    select option { background: #0d0d1a; }
+    .btn-primary {
+      background: #f97316;
+      color: #fff;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+      border: none;
+    }
+    .btn-primary:hover { background: #ea6a0a; }
+    .btn-primary:active { transform: scale(.97); }
+    .btn-ghost {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid rgba(148,163,184,.3);
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .btn-ghost:hover { border-color: #f97316; color: #f97316; }
+    .btn-danger {
+      background: #7f1d1d;
+      color: #fca5a5;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      border: none;
+      font-size: 12px;
+      transition: background .2s;
+    }
+    .btn-danger:hover { background: #991b1b; }
+    .nav-link { cursor: pointer; transition: color .2s; }
+    .nav-link:hover { color: #f97316; }
+    .nav-link.active { color: #f97316; border-bottom: 2px solid #f97316; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0d0d1a; }
+    ::-webkit-scrollbar-thumb { background: #f97316; border-radius: 3px; }
+    .drop-zone {
+      border: 2px dashed rgba(249,115,22,0.4);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #f97316;
+      background: rgba(249,115,22,0.05);
+    }
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 50;
+      padding: 16px;
+    }
+    .modal-box {
+      background: #16213e;
+      border: 1px solid rgba(249,115,22,0.25);
+      border-radius: 16px;
+      width: 100%; max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 28px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: #0f3460;
+      border: 1px solid rgba(249,115,22,0.4);
+      color: #e2e8f0;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 100;
+      animation: slideIn .3s ease;
+    }
+    .toast.error { border-color: rgba(239,68,68,.5); background:#1f0e0e; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+    .project-card { cursor: pointer; transition: transform .2s, border-color .2s; }
+    .project-card:hover { transform: translateY(-3px); border-color: rgba(249,115,22,0.5); }
+    label { display: block; margin-bottom: 4px; font-size: 13px; color: #94a3b8; font-weight: 500; }
+  </style>
+</head>
+<body class="text-slate-200 min-h-screen">
+
+  <!-- ── NAVBAR ── -->
+  <nav class="sticky top-0 z-40 border-b border-orange-900/30" style="background:#0d0d1a">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center font-black text-white text-sm">C</div>
+        <span class="font-bold text-white text-lg hidden sm:block">Cubo Digital</span>
+        <span class="text-slate-500 hidden sm:block">·</span>
+        <span class="text-slate-400 text-sm hidden sm:block">Valorización</span>
+      </div>
+      <div class="flex items-center gap-6">
+        <span id="nav-dashboard" class="nav-link active text-sm font-medium pb-1"
+              onclick="showView('dashboard')">Dashboard</span>
+        <span id="nav-projects" class="nav-link text-sm font-medium pb-1"
+              onclick="showView('projects')">Proyectos</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <main class="max-w-7xl mx-auto px-4 py-8">
+
+    <!-- DASHBOARD VIEW -->
+    <div id="view-dashboard">
+      <h1 class="text-2xl font-bold text-white mb-1">Dashboard</h1>
+      <p class="text-slate-400 text-sm mb-8">Resumen general de proyectos y gastos</p>
+
+      <!-- Stat Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        <div class="card rounded-2xl p-6">
+          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Proyectos</p>
+          <p id="dash-total-projects" class="text-4xl font-black text-white">—</p>
+        </div>
+        <div class="card rounded-2xl p-6">
+          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Proyectos Activos</p>
+          <p id="dash-active-projects" class="text-4xl font-black text-brand">—</p>
+        </div>
+        <div class="card rounded-2xl p-6">
+          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Gasto Total</p>
+          <p id="dash-total-spent" class="text-3xl font-black text-white">—</p>
+        </div>
+      </div>
+
+      <!-- Recent Invoices -->
+      <div class="card rounded-2xl p-6">
+        <h2 class="font-bold text-white mb-4">Facturas Recientes</h2>
+        <div id="dash-recent-invoices">
+          <p class="text-slate-500 text-sm">Cargando...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROJECTS LIST VIEW -->
+    <div id="view-projects" class="hidden">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-2xl font-bold text-white mb-1">Proyectos</h1>
+          <p class="text-slate-400 text-sm">Gestión de órdenes de trabajo</p>
+        </div>
+        <button class="btn-primary" onclick="openCreateProjectModal()">+ Nuevo Proyecto</button>
+      </div>
+      <div id="projects-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <p class="text-slate-500 text-sm col-span-3">Cargando proyectos...</p>
+      </div>
+    </div>
+
+    <!-- PROJECT DETAIL VIEW -->
+    <div id="view-project-detail" class="hidden">
+      <button class="btn-ghost mb-6 text-sm flex items-center gap-2" onclick="showView('projects')">
+        ← Volver a Proyectos
+      </button>
+      <div id="project-detail-content"></div>
+    </div>
+
+  </main>
+
+  <!-- ── MODALS ── -->
+
+  <!-- Create/Edit Project Modal -->
+  <div id="modal-project" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 id="modal-project-title" class="text-xl font-bold text-white mb-6">Nuevo Proyecto</h2>
+      <form id="form-project" onsubmit="submitProjectForm(event)" enctype="multipart/form-data">
+        <input type="hidden" id="project-edit-id" value="" />
+        <div class="space-y-4">
+          <div>
+            <label>Nombre del Proyecto *</label>
+            <input type="text" id="proj-name" required placeholder="Ej: Remodelación Oficina Centro" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label>Cliente</label>
+              <input type="text" id="proj-client" placeholder="Nombre del cliente" />
+            </div>
+            <div>
+              <label>Estado</label>
+              <select id="proj-status">
+                <option value="active">Activo</option>
+                <option value="completed">Completado</option>
+                <option value="paused">Pausado</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label>Descripción</label>
+            <textarea id="proj-description" rows="3" placeholder="Descripción del proyecto..."></textarea>
+          </div>
+          <div>
+            <label>Dimensiones / Alcance</label>
+            <input type="text" id="proj-dimensions" placeholder="Ej: 120 m², 3 pisos" />
+          </div>
+          <div>
+            <label>Foto del Proyecto</label>
+            <input type="file" id="proj-photo" accept="image/*" style="padding:6px" />
+          </div>
+        </div>
+        <div class="flex gap-3 mt-6">
+          <button type="submit" class="btn-primary flex-1" id="btn-save-project">Guardar Proyecto</button>
+          <button type="button" class="btn-ghost" onclick="closeModal('modal-project')">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Invoice Modal -->
+  <div id="modal-invoice" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:680px">
+      <h2 class="text-xl font-bold text-white mb-2">Agregar Factura</h2>
+      <p class="text-slate-400 text-sm mb-6" id="modal-invoice-project-name"></p>
+
+      <!-- Step 1: Upload photo -->
+      <div id="invoice-step-upload">
+        <div class="drop-zone" id="invoice-drop-zone" onclick="document.getElementById('invoice-photo-input').click()">
+          <div class="text-4xl mb-3">📄</div>
+          <p class="text-slate-300 font-medium">Arrastra la foto de la factura aquí</p>
+          <p class="text-slate-500 text-sm mt-1">o haz clic para seleccionar</p>
+          <input type="file" id="invoice-photo-input" accept="image/*" class="hidden" onchange="handleInvoicePhoto(event)" />
+        </div>
+        <div id="invoice-upload-preview" class="hidden mt-4 text-center">
+          <img id="invoice-preview-img" class="max-h-48 mx-auto rounded-lg object-contain" />
+          <p id="invoice-preview-name" class="text-slate-400 text-sm mt-2"></p>
+        </div>
+        <div class="flex gap-3 mt-6">
+          <button class="btn-primary flex-1" id="btn-scan-invoice" onclick="scanInvoice()" disabled>
+            🔍 Analizar con Claude AI
+          </button>
+          <button class="btn-ghost" onclick="closeModal('modal-invoice')">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Scanning spinner -->
+      <div id="invoice-step-scanning" class="hidden text-center py-10">
+        <div class="spinner mx-auto mb-4"></div>
+        <p class="text-white font-medium">Claude está leyendo la factura...</p>
+        <p class="text-slate-400 text-sm mt-1">Esto puede tomar unos segundos</p>
+      </div>
+
+      <!-- Step 3: Review extracted data -->
+      <div id="invoice-step-review" class="hidden">
+        <div class="bg-green-900/30 border border-green-700/40 rounded-xl p-3 mb-5 flex items-center gap-2">
+          <span class="text-green-400 text-lg">✓</span>
+          <p class="text-green-300 text-sm">Datos extraídos por Claude AI — revisa y ajusta si es necesario</p>
+        </div>
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label>Proveedor</label>
+              <input type="text" id="inv-supplier" placeholder="Nombre del proveedor" />
+            </div>
+            <div>
+              <label>Número de Factura</label>
+              <input type="text" id="inv-number" placeholder="Ej: FV-001234" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label>Fecha</label>
+              <input type="text" id="inv-date" placeholder="DD/MM/YYYY" />
+            </div>
+            <div>
+              <label>Moneda</label>
+              <select id="inv-currency">
+                <option value="COP">COP - Peso Colombiano</option>
+                <option value="USD">USD - Dólar</option>
+                <option value="EUR">EUR - Euro</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label>Total</label>
+            <input type="number" id="inv-total" placeholder="0" step="0.01" />
+          </div>
+          <div>
+            <label>Notas</label>
+            <textarea id="inv-notes" rows="2" placeholder="Observaciones..."></textarea>
+          </div>
+
+          <!-- Line items table -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="mb-0">Ítems / Líneas</label>
+              <button type="button" class="text-brand text-xs hover:underline" onclick="addInvoiceItem()">+ Agregar ítem</button>
+            </div>
+            <div id="invoice-items-container" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <!-- Preview photo -->
+        <div class="mt-4">
+          <img id="inv-photo-preview" class="max-h-40 rounded-lg object-contain hidden" />
+        </div>
+
+        <div class="flex gap-3 mt-6">
+          <button class="btn-primary flex-1" onclick="confirmInvoice()">💾 Confirmar y Guardar</button>
+          <button class="btn-ghost" onclick="resetInvoiceModal()">← Volver</button>
+          <button class="btn-ghost text-red-400 border-red-900/40" onclick="closeModal('modal-invoice')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div id="modal-delete" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:420px">
+      <h2 class="text-xl font-bold text-white mb-3">¿Eliminar?</h2>
+      <p id="delete-confirm-text" class="text-slate-400 mb-6"></p>
+      <div class="flex gap-3">
+        <button class="btn-primary flex-1 bg-red-700 hover:bg-red-800" id="btn-confirm-delete" onclick="executeDelete()">
+          Eliminar
+        </button>
+        <button class="btn-ghost flex-1" onclick="closeModal('modal-delete')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ─────────────────────────────────────────────
+  // STATE
+  // ─────────────────────────────────────────────
+  let currentView = 'dashboard';
+  let currentProjectId = null;
+  let scannedInvoiceData = null;
+  let invoicePhotoFile = null;
+  let pendingDeleteFn = null;
+  let invoiceItems = [];
+
+  // ─────────────────────────────────────────────
+  // UTILS
+  // ─────────────────────────────────────────────
+  const COP = v => {
+    if (v == null || v === '') return '—';
+    const num = parseFloat(v);
+    if (isNaN(num)) return '—';
+    return '$ ' + num.toLocaleString('es-CO', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' COP';
+  };
+
+  const statusBadge = s => {
+    const map = { active:'badge-active', completed:'badge-completed', paused:'badge-paused' };
+    const label = { active:'Activo', completed:'Completado', paused:'Pausado' };
+    return `<span class="text-xs px-2 py-0.5 rounded-full font-semibold ${map[s]||'badge-active'}">${label[s]||s}</span>`;
+  };
+
+  const fmtDate = d => {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleDateString('es-CO', {day:'2-digit',month:'short',year:'numeric'}); }
+    catch { return d; }
+  };
+
+  function toast(msg, isError=false) {
+    const el = document.createElement('div');
+    el.className = 'toast' + (isError?' error':'');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  async function api(path, opts={}) {
+    const res = await fetch(path, opts);
+    if (!res.ok) {
+      let err = 'Error del servidor';
+      try { const d = await res.json(); err = d.detail || JSON.stringify(d); } catch {}
+      throw new Error(err);
+    }
+    return res.json();
+  }
+
+  function showView(v) {
+    ['dashboard','projects','project-detail'].forEach(n => {
+      document.getElementById('view-'+n).classList.toggle('hidden', n !== v);
+    });
+    document.getElementById('nav-dashboard').classList.toggle('active', v==='dashboard');
+    document.getElementById('nav-projects').classList.toggle('active', v==='projects'||v==='project-detail');
+    currentView = v;
+    if (v === 'dashboard') loadDashboard();
+    if (v === 'projects') loadProjects();
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+  }
+
+  // ─────────────────────────────────────────────
+  // DASHBOARD
+  // ─────────────────────────────────────────────
+  async function loadDashboard() {
+    try {
+      const d = await api('/api/dashboard');
+      document.getElementById('dash-total-projects').textContent = d.total_projects;
+      document.getElementById('dash-active-projects').textContent = d.active_projects;
+      document.getElementById('dash-total-spent').textContent = COP(d.total_spent);
+
+      const container = document.getElementById('dash-recent-invoices');
+      if (!d.recent_invoices.length) {
+        container.innerHTML = '<p class="text-slate-500 text-sm">Sin facturas registradas aún.</p>';
+        return;
+      }
+      container.innerHTML = `
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-slate-400 border-b border-slate-700">
+              <th class="text-left pb-2 font-medium">Proveedor</th>
+              <th class="text-left pb-2 font-medium">Factura</th>
+              <th class="text-left pb-2 font-medium">Fecha</th>
+              <th class="text-right pb-2 font-medium">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${d.recent_invoices.map(inv => `
+              <tr class="border-b border-slate-800/50 hover:bg-white/5">
+                <td class="py-2 pr-4">${inv.supplier || '—'}</td>
+                <td class="py-2 pr-4 text-slate-400">${inv.invoice_number || '—'}</td>
+                <td class="py-2 pr-4 text-slate-400">${fmtDate(inv.created_at)}</td>
+                <td class="py-2 text-right font-semibold text-white">${COP(inv.total_amount)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table></div>`;
+    } catch(e) {
+      toast('Error cargando dashboard: ' + e.message, true);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // PROJECTS
+  // ─────────────────────────────────────────────
+  async function loadProjects() {
+    const grid = document.getElementById('projects-grid');
+    grid.innerHTML = '<p class="text-slate-500 text-sm col-span-3">Cargando...</p>';
+    try {
+      const projects = await api('/api/projects');
+      if (!projects.length) {
+        grid.innerHTML = '<p class="text-slate-500 text-sm col-span-3">No hay proyectos aún. ¡Crea el primero!</p>';
+        return;
+      }
+      grid.innerHTML = projects.map(p => `
+        <div class="card rounded-2xl overflow-hidden project-card" onclick="openProjectDetail(${p.id})">
+          <div class="h-40 bg-navy-900 overflow-hidden relative">
+            ${p.photo_url
+              ? `<img src="${p.photo_url}" class="w-full h-full object-cover" alt="${p.name}" />`
+              : `<div class="w-full h-full flex items-center justify-center text-5xl">🏗️</div>`}
+            <div class="absolute top-3 right-3">${statusBadge(p.status)}</div>
+          </div>
+          <div class="p-5">
+            <h3 class="font-bold text-white text-lg leading-tight mb-1">${p.name}</h3>
+            ${p.client_name ? `<p class="text-slate-400 text-sm mb-3">👤 ${p.client_name}</p>` : ''}
+            ${p.dimensions ? `<p class="text-slate-400 text-xs mb-3">📐 ${p.dimensions}</p>` : ''}
+            <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-700/50">
+              <span class="text-xs text-slate-500">${fmtDate(p.created_at)}</span>
+              <span class="font-bold text-brand text-sm">${COP(p.total_spent)}</span>
+            </div>
+          </div>
+        </div>`).join('');
+    } catch(e) {
+      grid.innerHTML = `<p class="text-red-400 text-sm col-span-3">Error: ${e.message}</p>`;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // CREATE / EDIT PROJECT
+  // ─────────────────────────────────────────────
+  function openCreateProjectModal() {
+    document.getElementById('modal-project-title').textContent = 'Nuevo Proyecto';
+    document.getElementById('project-edit-id').value = '';
+    document.getElementById('form-project').reset();
+    document.getElementById('btn-save-project').textContent = 'Guardar Proyecto';
+    document.getElementById('modal-project').classList.remove('hidden');
+  }
+
+  function openEditProjectModal(p) {
+    document.getElementById('modal-project-title').textContent = 'Editar Proyecto';
+    document.getElementById('project-edit-id').value = p.id;
+    document.getElementById('proj-name').value = p.name || '';
+    document.getElementById('proj-client').value = p.client_name || '';
+    document.getElementById('proj-status').value = p.status || 'active';
+    document.getElementById('proj-description').value = p.description || '';
+    document.getElementById('proj-dimensions').value = p.dimensions || '';
+    document.getElementById('btn-save-project').textContent = 'Actualizar Proyecto';
+    document.getElementById('modal-project').classList.remove('hidden');
+  }
+
+  async function submitProjectForm(e) {
+    e.preventDefault();
+    const editId = document.getElementById('project-edit-id').value;
+    const fd = new FormData();
+    fd.append('name', document.getElementById('proj-name').value);
+    fd.append('client_name', document.getElementById('proj-client').value);
+    fd.append('status', document.getElementById('proj-status').value);
+    fd.append('description', document.getElementById('proj-description').value);
+    fd.append('dimensions', document.getElementById('proj-dimensions').value);
+    const photo = document.getElementById('proj-photo').files[0];
+    if (photo) fd.append('photo', photo);
+
+    const btn = document.getElementById('btn-save-project');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+      if (editId) {
+        await fetch(`/api/projects/${editId}`, { method:'PUT', body: fd });
+        toast('Proyecto actualizado ✓');
+      } else {
+        await fetch('/api/projects', { method:'POST', body: fd });
+        toast('Proyecto creado ✓');
+      }
+      closeModal('modal-project');
+      if (editId && currentProjectId == editId) {
+        openProjectDetail(parseInt(editId));
+      } else {
+        loadProjects();
+      }
+    } catch(err) {
+      toast('Error: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = editId ? 'Actualizar Proyecto' : 'Guardar Proyecto';
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // PROJECT DETAIL
+  // ─────────────────────────────────────────────
+  async function openProjectDetail(id) {
+    currentProjectId = id;
+    showView('project-detail');
+    const container = document.getElementById('project-detail-content');
+    container.innerHTML = '<p class="text-slate-500">Cargando...</p>';
+    try {
+      const [project, invoices] = await Promise.all([
+        api(`/api/projects/${id}`),
+        api(`/api/projects/${id}/invoices`)
+      ]);
+      renderProjectDetail(project, invoices);
+    } catch(e) {
+      container.innerHTML = `<p class="text-red-400">Error: ${e.message}</p>`;
+    }
+  }
+
+  function renderProjectDetail(p, invoices) {
+    const container = document.getElementById('project-detail-content');
+    container.innerHTML = `
+      <!-- Header -->
+      <div class="flex flex-col sm:flex-row sm:items-start gap-5 mb-8">
+        <div class="w-full sm:w-48 h-36 rounded-2xl overflow-hidden bg-navy-900 flex-shrink-0">
+          ${p.photo_url
+            ? `<img src="${p.photo_url}" class="w-full h-full object-cover" />`
+            : `<div class="w-full h-full flex items-center justify-center text-5xl">🏗️</div>`}
+        </div>
+        <div class="flex-1">
+          <div class="flex flex-wrap items-center gap-3 mb-2">
+            <h1 class="text-2xl font-black text-white">${p.name}</h1>
+            ${statusBadge(p.status)}
+          </div>
+          ${p.client_name ? `<p class="text-slate-400 text-sm mb-1">👤 ${p.client_name}</p>` : ''}
+          ${p.dimensions ? `<p class="text-slate-400 text-sm mb-1">📐 ${p.dimensions}</p>` : ''}
+          ${p.description ? `<p class="text-slate-300 text-sm mt-2">${p.description}</p>` : ''}
+          <p class="text-slate-500 text-xs mt-2">Creado: ${fmtDate(p.created_at)}</p>
+          <div class="flex gap-2 mt-4">
+            <button class="btn-ghost text-sm" onclick='openEditProjectModal(${JSON.stringify(p)})'>✏️ Editar</button>
+            <button class="btn-danger" onclick="confirmDeleteProject(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🗑 Eliminar</button>
+          </div>
+        </div>
+        <div class="card rounded-2xl p-5 text-center min-w-[160px]">
+          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Gastado</p>
+          <p class="text-2xl font-black text-brand">${COP(p.total_spent)}</p>
+          <p class="text-xs text-slate-500 mt-1">${invoices.filter(i=>i.confirmed).length} factura(s)</p>
+        </div>
+      </div>
+
+      <!-- Invoices -->
+      <div class="card rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="font-bold text-white text-lg">Facturas del Proyecto</h2>
+          <button class="btn-primary text-sm" onclick="openAddInvoiceModal(${p.id}, '${p.name.replace(/'/g,"\\'")}')">
+            + Agregar Factura
+          </button>
+        </div>
+        <div id="invoices-list">
+          ${renderInvoicesList(invoices, p.id)}
+        </div>
+      </div>`;
+  }
+
+  function renderInvoicesList(invoices, projectId) {
+    if (!invoices.length) {
+      return '<p class="text-slate-500 text-sm">No hay facturas registradas. Agrega la primera.</p>';
+    }
+    return `<div class="space-y-3">${invoices.map(inv => `
+      <div class="rounded-xl p-4 border border-slate-700/50 hover:border-orange-500/30 transition-colors" style="background:#0d0d1a">
+        <div class="flex items-start gap-4">
+          ${inv.photo_url ? `
+            <a href="${inv.photo_url}" target="_blank" class="flex-shrink-0">
+              <img src="${inv.photo_url}" class="w-16 h-16 rounded-lg object-cover border border-slate-700" />
+            </a>` : '<div class="w-16 h-16 rounded-lg bg-slate-800 flex items-center justify-center text-2xl flex-shrink-0">🧾</div>'}
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+              <span class="font-semibold text-white">${inv.supplier || 'Sin proveedor'}</span>
+              ${inv.invoice_number ? `<span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">${inv.invoice_number}</span>` : ''}
+              ${inv.confirmed ? '<span class="text-xs text-green-400 bg-green-900/40 px-2 py-0.5 rounded">✓ Confirmada</span>' : ''}
+            </div>
+            ${inv.invoice_date ? `<p class="text-slate-400 text-xs mb-1">📅 ${inv.invoice_date}</p>` : ''}
+            ${inv.notes ? `<p class="text-slate-500 text-xs">${inv.notes}</p>` : ''}
+            ${inv.items && inv.items.length ? `
+              <details class="mt-2">
+                <summary class="text-xs text-slate-400 cursor-pointer hover:text-brand">${inv.items.length} ítem(s)</summary>
+                <div class="mt-2 space-y-1">
+                  ${inv.items.map(it => `
+                    <div class="text-xs text-slate-400 flex justify-between gap-4">
+                      <span>${it.description || '—'} ${it.quantity ? `x${it.quantity}` : ''}</span>
+                      <span class="text-slate-300">${COP(it.total)}</span>
+                    </div>`).join('')}
+                </div>
+              </details>` : ''}
+          </div>
+          <div class="text-right flex-shrink-0">
+            <p class="font-bold text-brand text-lg">${COP(inv.total_amount)}</p>
+            <button class="btn-danger mt-2 text-xs" onclick="confirmDeleteInvoice(${inv.id}, ${projectId})">🗑</button>
+          </div>
+        </div>
+      </div>`).join('')}</div>`;
+  }
+
+  // ─────────────────────────────────────────────
+  // INVOICE MODAL
+  // ─────────────────────────────────────────────
+  function openAddInvoiceModal(projectId, projectName) {
+    currentProjectId = projectId;
+    document.getElementById('modal-invoice-project-name').textContent = projectName;
+    resetInvoiceModal();
+    document.getElementById('modal-invoice').classList.remove('hidden');
+  }
+
+  function resetInvoiceModal() {
+    scannedInvoiceData = null;
+    invoicePhotoFile = null;
+    invoiceItems = [];
+    document.getElementById('invoice-photo-input').value = '';
+    document.getElementById('invoice-upload-preview').classList.add('hidden');
+    document.getElementById('btn-scan-invoice').disabled = true;
+    document.getElementById('invoice-step-upload').classList.remove('hidden');
+    document.getElementById('invoice-step-scanning').classList.add('hidden');
+    document.getElementById('invoice-step-review').classList.add('hidden');
+  }
+
+  function handleInvoicePhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    invoicePhotoFile = file;
+    const url = URL.createObjectURL(file);
+    document.getElementById('invoice-preview-img').src = url;
+    document.getElementById('invoice-preview-name').textContent = file.name;
+    document.getElementById('invoice-upload-preview').classList.remove('hidden');
+    document.getElementById('btn-scan-invoice').disabled = false;
+  }
+
+  async function scanInvoice() {
+    if (!invoicePhotoFile) return;
+    document.getElementById('invoice-step-upload').classList.add('hidden');
+    document.getElementById('invoice-step-scanning').classList.remove('hidden');
+
+    try {
+      const fd = new FormData();
+      fd.append('photo', invoicePhotoFile);
+      const res = await fetch(`/api/projects/${currentProjectId}/invoices/scan`, { method:'POST', body:fd });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Error al escanear');
+      }
+      scannedInvoiceData = await res.json();
+      showInvoiceReview(scannedInvoiceData);
+    } catch(e) {
+      document.getElementById('invoice-step-scanning').classList.add('hidden');
+      document.getElementById('invoice-step-upload').classList.remove('hidden');
+      toast('Error: ' + e.message, true);
+    }
+  }
+
+  function showInvoiceReview(data) {
+    document.getElementById('invoice-step-scanning').classList.add('hidden');
+    document.getElementById('invoice-step-review').classList.remove('hidden');
+
+    document.getElementById('inv-supplier').value = data.supplier || '';
+    document.getElementById('inv-number').value = data.invoice_number || '';
+    document.getElementById('inv-date').value = data.invoice_date || '';
+    document.getElementById('inv-total').value = data.total_amount || '';
+    document.getElementById('inv-notes').value = data.notes || '';
+    const cur = document.getElementById('inv-currency');
+    if (data.currency) cur.value = data.currency;
+
+    // Photo preview
+    const preview = document.getElementById('inv-photo-preview');
+    if (data.photo_url) {
+      preview.src = data.photo_url;
+      preview.classList.remove('hidden');
+    }
+
+    // Items
+    invoiceItems = (data.items || []).map(it => ({
+      description: it.description || '',
+      quantity: it.quantity || '',
+      unit_price: it.unit_price || '',
+      total: it.total || ''
+    }));
+    renderInvoiceItems();
+  }
+
+  function renderInvoiceItems() {
+    const c = document.getElementById('invoice-items-container');
+    if (!invoiceItems.length) {
+      c.innerHTML = '<p class="text-slate-500 text-xs">Sin ítems. Agrega líneas si lo necesitas.</p>';
+      return;
+    }
+    c.innerHTML = invoiceItems.map((it, i) => `
+      <div class="grid grid-cols-12 gap-2 items-center text-sm" data-item="${i}">
+        <div class="col-span-5">
+          <input type="text" placeholder="Descripción" value="${it.description}"
+            oninput="invoiceItems[${i}].description=this.value" />
+        </div>
+        <div class="col-span-2">
+          <input type="number" placeholder="Cant." value="${it.quantity}"
+            oninput="invoiceItems[${i}].quantity=parseFloat(this.value)||''" />
+        </div>
+        <div class="col-span-2">
+          <input type="number" placeholder="P.U." value="${it.unit_price}"
+            oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||''" />
+        </div>
+        <div class="col-span-2">
+          <input type="number" placeholder="Total" value="${it.total}"
+            oninput="invoiceItems[${i}].total=parseFloat(this.value)||''" />
+        </div>
+        <div class="col-span-1 text-center">
+          <button type="button" class="text-red-400 hover:text-red-300 text-lg leading-none"
+            onclick="removeInvoiceItem(${i})">×</button>
+        </div>
+      </div>`).join('');
+  }
+
+  function addInvoiceItem() {
+    invoiceItems.push({ description:'', quantity:'', unit_price:'', total:'' });
+    renderInvoiceItems();
+  }
+
+  function removeInvoiceItem(i) {
+    invoiceItems.splice(i, 1);
+    renderInvoiceItems();
+  }
+
+  async function confirmInvoice() {
+    const payload = {
+      photo_url: scannedInvoiceData?.photo_url || null,
+      supplier: document.getElementById('inv-supplier').value || null,
+      invoice_number: document.getElementById('inv-number').value || null,
+      invoice_date: document.getElementById('inv-date').value || null,
+      total_amount: parseFloat(document.getElementById('inv-total').value) || null,
+      currency: document.getElementById('inv-currency').value,
+      notes: document.getElementById('inv-notes').value || null,
+      items: invoiceItems.filter(it => it.description || it.total).map(it => ({
+        description: it.description || null,
+        quantity: parseFloat(it.quantity) || null,
+        unit_price: parseFloat(it.unit_price) || null,
+        total: parseFloat(it.total) || null,
+      })),
+      confirmed: true,
+    };
+
+    try {
+      await api(`/api/projects/${currentProjectId}/invoices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      toast('Factura guardada ✓');
+      closeModal('modal-invoice');
+      openProjectDetail(currentProjectId);
+    } catch(e) {
+      toast('Error guardando factura: ' + e.message, true);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // DELETE HELPERS
+  // ─────────────────────────────────────────────
+  function confirmDeleteProject(id, name) {
+    document.getElementById('delete-confirm-text').textContent =
+      `¿Estás seguro de que deseas eliminar el proyecto "${name}" y todas sus facturas?`;
+    pendingDeleteFn = async () => {
+      await api(`/api/projects/${id}`, { method:'DELETE' });
+      toast('Proyecto eliminado');
+      showView('projects');
+    };
+    document.getElementById('modal-delete').classList.remove('hidden');
+  }
+
+  function confirmDeleteInvoice(invoiceId, projectId) {
+    document.getElementById('delete-confirm-text').textContent =
+      '¿Eliminar esta factura? Esta acción no se puede deshacer.';
+    pendingDeleteFn = async () => {
+      await api(`/api/invoices/${invoiceId}`, { method:'DELETE' });
+      toast('Factura eliminada');
+      openProjectDetail(projectId);
+    };
+    document.getElementById('modal-delete').classList.remove('hidden');
+  }
+
+  async function executeDelete() {
+    if (!pendingDeleteFn) return;
+    const btn = document.getElementById('btn-confirm-delete');
+    btn.disabled = true;
+    btn.textContent = 'Eliminando...';
+    try {
+      await pendingDeleteFn();
+    } catch(e) {
+      toast('Error: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Eliminar';
+      closeModal('modal-delete');
+      pendingDeleteFn = null;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // DRAG & DROP
+  // ─────────────────────────────────────────────
+  const dz = document.getElementById('invoice-drop-zone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const input = document.getElementById('invoice-photo-input');
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      handleInvoicePhoto({ target: input });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // INIT
+  // ─────────────────────────────────────────────
+  loadDashboard();
+  </script>
+</body>
+</html>
