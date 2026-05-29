@@ -28,6 +28,15 @@ async def get_db():
 
 
 async def init_db():
-    from models import Project, Invoice  # noqa: F401
+    from models import Project, Invoice, Client  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Add client_id column to projects if it doesn't exist yet
+        try:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL"
+                )
+            )
+        except Exception:
+            pass
