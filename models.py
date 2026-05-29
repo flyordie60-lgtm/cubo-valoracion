@@ -12,6 +12,21 @@ class ProjectStatus(str, enum.Enum):
     paused = "paused"
 
 
+class Client(Base):
+    __tablename__ = "clients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    contact_person = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    email = Column(String(255), nullable=True)
+    company = Column(String(255), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    projects = relationship("Project", back_populates="client")
+
+
 class Project(Base):
     __tablename__ = "projects"
 
@@ -20,10 +35,12 @@ class Project(Base):
     description = Column(Text, nullable=True)
     dimensions = Column(Text, nullable=True)
     client_name = Column(String(255), nullable=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True)
     status = Column(String(20), default="active", nullable=False)
     photo_url = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    client = relationship("Client", back_populates="projects")
     invoices = relationship("Invoice", back_populates="project", cascade="all, delete-orphan")
 
     @property

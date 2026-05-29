@@ -6,31 +6,35 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from database import get_db
-from models import Project, Invoice
-from schemas import ProjectCreate, ProjectUpdate, ProjectOut
+from models import Project, Invoice, Client
+from schemas import ProjectCreate, ProjectUpdate, ProjectOut, ClientOut
 from services.cloudinary_service import upload_image
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
 def project_to_out(project: Project) -> ProjectOut:
+    from schemas import ClientOut
+    client_out = ClientOut.model_validate(project.client) if project.client else None
     return ProjectOut(
         id=project.id,
         name=project.name,
         description=project.description,
         dimensions=project.dimensions,
         client_name=project.client_name,
+        client_id=project.client_id,
         status=project.status,
         photo_url=project.photo_url,
         created_at=project.created_at,
         total_spent=project.total_spent,
+        client=client_out,
     )
 
 
 @router.get("", response_model=List[ProjectOut])
 async def list_projects(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Project).options(selectinload(Project.invoices)).order_by(Project.created_at.desc())
+        select(Project).options(selectinload(Project.invoices), selectinload(Project.client)).order_by(Project.created_at.desc())
     )
     projects = result.scalars().all()
     return [project_to_out(p) for p in projects]
@@ -42,6 +46,7 @@ async def create_project(
     description: Optional[str] = Form(None),
     dimensions: Optional[str] = Form(None),
     client_name: Optional[str] = Form(None),
+    client_id: Optional[int] = Form(None),
     status: Optional[str] = Form("active"),
     photo: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db),
@@ -57,6 +62,7 @@ async def create_project(
         description=description,
         dimensions=dimensions,
         client_name=client_name,
+        client_id=client_id if client_id else None,
         status=status or "active",
         photo_url=photo_url,
     )
@@ -66,7 +72,7 @@ async def create_project(
 
     # Load invoices relationship
     result = await db.execute(
-        select(Project).options(selectinload(Project.invoices)).where(Project.id == project.id)
+        select(Project).options(selectinload(Project.invoices), selectinload(Project.client)).where(Project.id == project.id)
     )
     project = result.scalar_one()
     return project_to_out(project)
@@ -90,6 +96,7 @@ async def update_project(
     description: Optional[str] = Form(None),
     dimensions: Optional[str] = Form(None),
     client_name: Optional[str] = Form(None),
+    client_id: Optional[int] = Form(None),
     status: Optional[str] = Form(None),
     photo: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db),
@@ -109,6 +116,8 @@ async def update_project(
         project.dimensions = dimensions
     if client_name is not None:
         project.client_name = client_name
+    if client_id is not None:
+        project.client_id = client_id if client_id > 0 else None
     if status is not None:
         project.status = status
 

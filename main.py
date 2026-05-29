@@ -15,6 +15,7 @@ from models import Project, Invoice
 from schemas import DashboardOut, InvoiceOut
 from routes.projects import router as projects_router
 from routes.invoices import router as invoices_router
+from routes.clients import router as clients_router
 
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ app.add_middleware(
 
 app.include_router(projects_router)
 app.include_router(invoices_router)
+app.include_router(clients_router)
 
 
 @app.get("/api/dashboard", response_model=DashboardOut)
