@@ -21,4 +21,4 @@ services:
 databases:
   - name: cubo-valoracion-db
     databaseName: cubo_valoracion
-    plan: free
+    plan: starter
