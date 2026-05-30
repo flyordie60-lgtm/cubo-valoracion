@@ -183,6 +183,8 @@
               onclick="showView('clients')">Clientes</span>
         <span id="nav-prices" class="nav-link text-sm font-medium pb-1"
               onclick="showView('prices')">📊 Precios</span>
+        <span id="nav-catalog" class="nav-link text-sm font-medium pb-1"
+              onclick="showView('catalog')">📦 Insumos</span>
         <span id="nav-users" class="nav-link text-sm font-medium pb-1 hidden"
               onclick="openUsersModal()">👥 Usuarios</span>
         <div class="flex items-center gap-2 ml-2">
@@ -271,6 +273,37 @@
         <button class="btn-primary" onclick="openCreateClientModal()">+ Nuevo Cliente</button>
       </div>
       <div id="clients-list" class="space-y-3">
+        <p class="text-slate-500 text-sm">Cargando...</p>
+      </div>
+    </div>
+
+    <!-- CATALOG VIEW -->
+    <div id="view-catalog" class="hidden">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-2xl font-bold text-white mb-1">📦 Catálogo de Insumos</h1>
+          <p class="text-slate-400 text-sm">Categorías y materiales estandarizados para comparaciones exactas</p>
+        </div>
+        <button class="btn-primary" onclick="openCreateCategoryForm()">+ Nueva Categoría</button>
+      </div>
+      <div id="catalog-create-category-form" class="hidden card rounded-2xl p-5 mb-6">
+        <h3 class="font-semibold text-white mb-4" id="catalog-cat-form-title">Nueva Categoría</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label>Nombre</label>
+            <input type="text" id="catalog-cat-name" placeholder="Ej: Pinturas" />
+          </div>
+          <div>
+            <label>Descripción (opcional)</label>
+            <input type="text" id="catalog-cat-desc" placeholder="Descripción breve" />
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <button class="btn-primary" onclick="submitCategoryForm()">Guardar</button>
+          <button class="btn-ghost" onclick="closeCategoryForm()">Cancelar</button>
+        </div>
+      </div>
+      <div id="catalog-list" class="space-y-4">
         <p class="text-slate-500 text-sm">Cargando...</p>
       </div>
     </div>
@@ -631,18 +664,20 @@
   }
 
   function showView(v) {
-    ['dashboard','projects','project-detail','clients','prices'].forEach(n => {
+    ['dashboard','projects','project-detail','clients','prices','catalog'].forEach(n => {
       document.getElementById('view-'+n).classList.toggle('hidden', n !== v);
     });
     document.getElementById('nav-dashboard').classList.toggle('active', v==='dashboard');
     document.getElementById('nav-projects').classList.toggle('active', v==='projects'||v==='project-detail');
     document.getElementById('nav-clients').classList.toggle('active', v==='clients');
     document.getElementById('nav-prices').classList.toggle('active', v==='prices');
+    document.getElementById('nav-catalog').classList.toggle('active', v==='catalog');
     currentView = v;
     if (v === 'dashboard') loadDashboard();
     if (v === 'projects') loadProjects();
     if (v === 'clients') loadClients();
     if (v === 'prices') loadPriceRankings();
+    if (v === 'catalog') loadCatalog();
   }
 
   function closeModal(id) {
@@ -1316,9 +1351,12 @@
         const m2text = itemTotal && area > 0 ? '$' + fmtNum(itemTotal / area) + '/m²' : (area === 0 ? 'Sin área' : '—');
         return `
         <div class="grid grid-cols-12 gap-2 items-center text-sm" data-item="${i}">
-          <div class="col-span-3">
-            <input type="text" placeholder="Descripción" value="${it.description}"
-              oninput="invoiceItems[${i}].description=this.value" />
+          <div class="col-span-3" style="position:relative">
+            <input type="text" placeholder="Descripción" value="${escHtmlInv(it.description)}"
+              id="item-desc-input-${i}"
+              oninput="invoiceItems[${i}].description=this.value; debounceCatalogSearch(${i}, this.value)"
+              autocomplete="off" />
+            <div id="item-desc-dropdown-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:#0d0d1a;border:1px solid rgba(249,115,22,0.4);border-radius:8px;max-height:180px;overflow-y:auto;margin-top:2px;"></div>
           </div>
           <div class="col-span-2">
             <select onchange="invoiceItems[${i}].unit=this.value; updateM2Display(${i})">
@@ -1371,6 +1409,7 @@
         unit: it.unit || null,
         unit_price: parseFloat(it.unit_price) || null,
         total: parseFloat(it.total) || null,
+        material_id: it.material_id || null,
       })),
       confirmed: true,
       uploaded_by: currentUser ? currentUser.username : null,
@@ -1739,6 +1778,283 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Crear Usuario';
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // INVOICE ITEM AUTOCOMPLETE
+  // ─────────────────────────────────────────────
+  function escHtmlInv(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  const _catalogSearchTimers = {};
+
+  function debounceCatalogSearch(idx, val) {
+    clearTimeout(_catalogSearchTimers[idx]);
+    if (!val || val.length < 2) {
+      hideCatalogDropdown(idx);
+      return;
+    }
+    _catalogSearchTimers[idx] = setTimeout(() => performCatalogSearch(idx, val), 300);
+  }
+
+  async function performCatalogSearch(idx, q) {
+    try {
+      const results = await api(`/api/catalog/search?q=${encodeURIComponent(q)}`);
+      showCatalogDropdown(idx, results);
+    } catch(e) {
+      hideCatalogDropdown(idx);
+    }
+  }
+
+  function showCatalogDropdown(idx, results) {
+    const dd = document.getElementById(`item-desc-dropdown-${idx}`);
+    if (!dd) return;
+    if (!results || !results.length) {
+      dd.style.display = 'none';
+      return;
+    }
+    dd.innerHTML = results.map(m => `
+      <div onclick="selectCatalogMaterial(${idx}, ${m.id}, '${escHtmlInv(m.name).replace(/'/g,"\\'")}', '${(m.default_unit||'').replace(/'/g,"\\'")}', '${escHtmlInv(m.category ? m.category.name : '').replace(/'/g,"\\'")}' )"
+           style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid rgba(249,115,22,0.1);"
+           onmouseover="this.style.background='rgba(249,115,22,0.1)'"
+           onmouseout="this.style.background=''">
+        <span style="color:#94a3b8;font-size:11px;">${escHtmlInv(m.category ? m.category.name : '')}</span>
+        <span style="color:#e2e8f0;margin-left:6px;">${escHtmlInv(m.name)}</span>
+        ${m.default_unit ? `<span style="color:#f97316;font-size:11px;margin-left:6px;">(${escHtmlInv(m.default_unit)})</span>` : ''}
+      </div>
+    `).join('');
+    dd.style.display = 'block';
+  }
+
+  function hideCatalogDropdown(idx) {
+    const dd = document.getElementById(`item-desc-dropdown-${idx}`);
+    if (dd) dd.style.display = 'none';
+  }
+
+  function selectCatalogMaterial(idx, materialId, name, unit, catName) {
+    invoiceItems[idx].description = name;
+    invoiceItems[idx].material_id = materialId;
+    if (unit) invoiceItems[idx].unit = unit;
+    hideCatalogDropdown(idx);
+    const input = document.getElementById(`item-desc-input-${idx}`);
+    if (input) input.value = name;
+    // Update unit select without full re-render
+    renderInvoiceItems();
+  }
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('[id^="item-desc-"]')) {
+      invoiceItems.forEach((_, i) => hideCatalogDropdown(i));
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // CATALOG
+  // ─────────────────────────────────────────────
+  let editingCatId = null;
+  let editingMatId = null;
+
+  async function loadCatalog() {
+    const container = document.getElementById('catalog-list');
+    container.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
+    try {
+      const categories = await api('/api/catalog');
+      renderCatalog(categories);
+    } catch(e) {
+      container.innerHTML = `<p class="text-red-400 text-sm">Error: ${e.message}</p>`;
+    }
+  }
+
+  function renderCatalog(categories) {
+    const container = document.getElementById('catalog-list');
+    if (!categories.length) {
+      container.innerHTML = '<p class="text-slate-500 text-sm">Sin categorías. Crea una para comenzar.</p>';
+      return;
+    }
+    container.innerHTML = categories.map(cat => `
+      <div class="card rounded-2xl p-5" id="cat-card-${cat.id}">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="font-bold text-white text-lg">${escHtml(cat.name)}</h3>
+            ${cat.description ? `<p class="text-slate-400 text-sm">${escHtml(cat.description)}</p>` : ''}
+          </div>
+          <div class="flex gap-2">
+            <button class="btn-ghost text-xs py-1 px-3" onclick="openEditCategoryForm(${cat.id}, '${escHtml(cat.name).replace(/'/g,"\\'")}', '${(cat.description||'').replace(/'/g,"\\'")}')">✏️ Editar</button>
+            <button class="btn-danger" onclick="deleteCategory(${cat.id})">🗑 Eliminar</button>
+          </div>
+        </div>
+        <div id="mat-list-${cat.id}" class="space-y-2 mb-3">
+          ${cat.materials.length ? cat.materials.map(m => `
+            <div class="flex items-center justify-between bg-slate-800/50 rounded-xl px-4 py-2" id="mat-row-${m.id}">
+              <div class="flex items-center gap-3">
+                <span class="text-slate-200 text-sm font-medium">${escHtml(m.name)}</span>
+                ${m.default_unit ? `<span class="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded">${escHtml(m.default_unit)}</span>` : ''}
+                ${m.description ? `<span class="text-xs text-slate-500">${escHtml(m.description)}</span>` : ''}
+              </div>
+              <div class="flex gap-2">
+                <button class="btn-ghost text-xs py-0.5 px-2" onclick="openEditMaterialForm(${m.id}, ${cat.id}, '${escHtml(m.name).replace(/'/g,"\\'")}', '${(m.description||'').replace(/'/g,"\\'")}', '${(m.default_unit||'').replace(/'/g,"\\'")}')">✏️</button>
+                <button class="btn-danger text-xs" onclick="deleteMaterial(${m.id}, ${cat.id})">🗑</button>
+              </div>
+            </div>
+          `).join('') : '<p class="text-slate-500 text-xs px-2">Sin insumos en esta categoría.</p>'}
+        </div>
+        <div id="mat-form-${cat.id}" class="hidden bg-slate-800/30 rounded-xl p-4 mt-2">
+          <h4 class="text-sm font-semibold text-white mb-3" id="mat-form-title-${cat.id}">Nuevo Insumo</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div class="sm:col-span-1">
+              <label>Nombre del insumo</label>
+              <input type="text" id="mat-name-${cat.id}" placeholder="Ej: Pintura vinilo blanca" />
+            </div>
+            <div>
+              <label>Unidad por defecto</label>
+              <input type="text" id="mat-unit-${cat.id}" placeholder="Ej: lt, saco, m²" />
+            </div>
+            <div>
+              <label>Descripción (opcional)</label>
+              <input type="text" id="mat-desc-${cat.id}" placeholder="Descripción breve" />
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button class="btn-primary text-sm py-2 px-4" onclick="submitMaterialForm(${cat.id})">Guardar</button>
+            <button class="btn-ghost text-sm py-2 px-4" onclick="closeMaterialForm(${cat.id})">Cancelar</button>
+          </div>
+        </div>
+        <button class="btn-ghost text-xs mt-2" onclick="openCreateMaterialForm(${cat.id})">+ Agregar insumo</button>
+      </div>
+    `).join('');
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function openCreateCategoryForm() {
+    editingCatId = null;
+    document.getElementById('catalog-cat-form-title').textContent = 'Nueva Categoría';
+    document.getElementById('catalog-cat-name').value = '';
+    document.getElementById('catalog-cat-desc').value = '';
+    document.getElementById('catalog-create-category-form').classList.remove('hidden');
+    document.getElementById('catalog-cat-name').focus();
+  }
+
+  function openEditCategoryForm(id, name, desc) {
+    editingCatId = id;
+    document.getElementById('catalog-cat-form-title').textContent = 'Editar Categoría';
+    document.getElementById('catalog-cat-name').value = name;
+    document.getElementById('catalog-cat-desc').value = desc || '';
+    document.getElementById('catalog-create-category-form').classList.remove('hidden');
+    document.getElementById('catalog-cat-name').focus();
+  }
+
+  function closeCategoryForm() {
+    editingCatId = null;
+    document.getElementById('catalog-create-category-form').classList.add('hidden');
+  }
+
+  async function submitCategoryForm() {
+    const name = document.getElementById('catalog-cat-name').value.trim();
+    if (!name) { toast('El nombre es obligatorio', true); return; }
+    const desc = document.getElementById('catalog-cat-desc').value.trim() || null;
+    try {
+      if (editingCatId) {
+        await api(`/api/catalog/categories/${editingCatId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description: desc }),
+        });
+        toast('Categoría actualizada ✓');
+      } else {
+        await api('/api/catalog/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description: desc }),
+        });
+        toast('Categoría creada ✓');
+      }
+      closeCategoryForm();
+      await loadCatalog();
+    } catch(e) {
+      toast('Error: ' + e.message, true);
+    }
+  }
+
+  async function deleteCategory(id) {
+    if (!confirm('¿Eliminar esta categoría y todos sus insumos?')) return;
+    try {
+      await api(`/api/catalog/categories/${id}`, { method: 'DELETE' });
+      toast('Categoría eliminada');
+      await loadCatalog();
+    } catch(e) {
+      toast('Error: ' + e.message, true);
+    }
+  }
+
+  function openCreateMaterialForm(catId) {
+    editingMatId = null;
+    document.getElementById(`mat-form-title-${catId}`).textContent = 'Nuevo Insumo';
+    document.getElementById(`mat-name-${catId}`).value = '';
+    document.getElementById(`mat-unit-${catId}`).value = '';
+    document.getElementById(`mat-desc-${catId}`).value = '';
+    document.getElementById(`mat-form-${catId}`).classList.remove('hidden');
+    document.getElementById(`mat-name-${catId}`).focus();
+  }
+
+  function openEditMaterialForm(matId, catId, name, desc, unit) {
+    editingMatId = { matId, catId };
+    document.getElementById(`mat-form-title-${catId}`).textContent = 'Editar Insumo';
+    document.getElementById(`mat-name-${catId}`).value = name;
+    document.getElementById(`mat-unit-${catId}`).value = unit || '';
+    document.getElementById(`mat-desc-${catId}`).value = desc || '';
+    document.getElementById(`mat-form-${catId}`).classList.remove('hidden');
+    document.getElementById(`mat-name-${catId}`).focus();
+  }
+
+  function closeMaterialForm(catId) {
+    editingMatId = null;
+    document.getElementById(`mat-form-${catId}`).classList.add('hidden');
+  }
+
+  async function submitMaterialForm(catId) {
+    const name = document.getElementById(`mat-name-${catId}`).value.trim();
+    if (!name) { toast('El nombre es obligatorio', true); return; }
+    const unit = document.getElementById(`mat-unit-${catId}`).value.trim() || null;
+    const desc = document.getElementById(`mat-desc-${catId}`).value.trim() || null;
+    try {
+      if (editingMatId && editingMatId.catId === catId) {
+        await api(`/api/catalog/materials/${editingMatId.matId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category_id: catId, name, description: desc, default_unit: unit }),
+        });
+        toast('Insumo actualizado ✓');
+      } else {
+        await api('/api/catalog/materials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category_id: catId, name, description: desc, default_unit: unit }),
+        });
+        toast('Insumo creado ✓');
+      }
+      closeMaterialForm(catId);
+      await loadCatalog();
+    } catch(e) {
+      toast('Error: ' + e.message, true);
+    }
+  }
+
+  async function deleteMaterial(matId, catId) {
+    if (!confirm('¿Eliminar este insumo?')) return;
+    try {
+      await api(`/api/catalog/materials/${matId}`, { method: 'DELETE' });
+      toast('Insumo eliminado');
+      await loadCatalog();
+    } catch(e) {
+      toast('Error: ' + e.message, true);
     }
   }
 

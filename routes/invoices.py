@@ -37,6 +37,14 @@ async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = N
             continue
 
         norm = normalize_description(desc)
+        material_id = item.get("material_id")
+
+        if material_id:
+            where_clause = PriceHistory.material_id == material_id
+            where_clause_prices = PriceHistory.material_id == material_id
+        else:
+            where_clause = PriceHistory.item_description_normalized == norm
+            where_clause_prices = PriceHistory.item_description_normalized == norm
 
         result = await db.execute(
             select(
@@ -44,7 +52,7 @@ async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = N
                 func.avg(PriceHistory.unit_price).label("avg_price"),
                 func.min(PriceHistory.unit_price).label("min_price"),
             )
-            .where(PriceHistory.item_description_normalized == norm)
+            .where(where_clause)
             .where(PriceHistory.unit_price.isnot(None))
             .group_by(PriceHistory.supplier)
             .order_by(func.min(PriceHistory.unit_price))
@@ -71,7 +79,7 @@ async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = N
                 func.avg(PriceHistory.price_per_m2),
                 func.min(PriceHistory.price_per_m2),
             )
-            .where(PriceHistory.item_description_normalized == norm)
+            .where(where_clause_prices)
             .where(PriceHistory.unit_price.isnot(None))
         )
         avg_price, min_price, avg_price_m2, min_price_m2 = all_prices_result.one()
@@ -208,6 +216,7 @@ async def save_invoice(
                     total=item.total,
                     area_m2=invoice_data.area_m2,
                     price_per_m2=price_per_m2_val,
+                    material_id=item.material_id,
                 )
                 db.add(ph)
 

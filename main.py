@@ -18,6 +18,7 @@ from routes.invoices import router as invoices_router
 from routes.clients import router as clients_router
 from routes.price_history import router as price_history_router
 from routes.auth import router as auth_router
+from routes.catalog import router as catalog_router
 
 
 @asynccontextmanager
@@ -49,6 +50,7 @@ app.include_router(invoices_router)
 app.include_router(clients_router)
 app.include_router(price_history_router)
 app.include_router(auth_router)
+app.include_router(catalog_router)
 
 
 @app.get("/api/dashboard", response_model=DashboardOut)

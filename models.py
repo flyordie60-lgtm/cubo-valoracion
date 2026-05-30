@@ -6,6 +6,30 @@ import enum
 from database import Base
 
 
+class Category(Base):
+    __tablename__ = "categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    materials = relationship("Material", back_populates="category", cascade="all, delete-orphan")
+
+
+class Material(Base):
+    __tablename__ = "materials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    default_unit = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    category = relationship("Category", back_populates="materials")
+
+
 class ProjectStatus(str, enum.Enum):
     active = "active"
     completed = "completed"
@@ -43,6 +67,7 @@ class PriceHistory(Base):
     recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     area_m2 = Column(Float, nullable=True)  # área del proyecto en m²
     price_per_m2 = Column(Float, nullable=True)  # precio/m² = total_item / area_m2
+    material_id = Column(Integer, ForeignKey("materials.id", ondelete="SET NULL"), nullable=True)
 
 
 class Project(Base):

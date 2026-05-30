@@ -77,12 +77,58 @@ class ProjectOut(BaseModel):
 
 # ── Invoice schemas ──────────────────────────────────────────────
 
+class CategoryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class CategoryOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MaterialCreate(BaseModel):
+    category_id: int
+    name: str
+    description: Optional[str] = None
+    default_unit: Optional[str] = None
+
+
+class MaterialOut(BaseModel):
+    id: int
+    category_id: int
+    name: str
+    description: Optional[str]
+    default_unit: Optional[str]
+    created_at: datetime
+    category: Optional[CategoryOut] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CategoryWithMaterials(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    materials: List[MaterialOut] = []
+
+    class Config:
+        from_attributes = True
+
+
 class InvoiceItem(BaseModel):
     description: Optional[str] = None
     quantity: Optional[float] = None
     unit: Optional[str] = None
     unit_price: Optional[float] = None
     total: Optional[float] = None
+    material_id: Optional[int] = None
 
 
 class PriceComparison(BaseModel):
