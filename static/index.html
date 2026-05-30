@@ -916,11 +916,22 @@
         api(`/api/projects/${id}`),
         api(`/api/projects/${id}/invoices`)
       ]);
-      // Try to parse project area from dimensions string (e.g. "50", "50 m2", "10x5")
+      // Parse project area from dimensions string
+      // Supports: "50 m²", "10x5", "120x180 cm", "1.2x1.8 m", "lamina de 120x180"
       if (project.dimensions) {
-        const nums = project.dimensions.match(/[\d.]+/g);
-        if (nums && nums.length === 1) projectAreaM2 = parseFloat(nums[0]);
-        else if (nums && nums.length >= 2) projectAreaM2 = parseFloat(nums[0]) * parseFloat(nums[1]);
+        const d = project.dimensions.toLowerCase();
+        const nums = d.match(/[\d.]+/g);
+        if (nums && nums.length >= 2) {
+          let a = parseFloat(nums[0]), b = parseFloat(nums[1]);
+          // Detect unit: if "cm" in string OR both values > 10 (likely cm), convert
+          if (d.includes('cm') || d.includes('mm') || (a > 10 && b > 10)) {
+            const div = d.includes('mm') ? 1000 : 100;
+            a = a / div; b = b / div;
+          }
+          projectAreaM2 = Math.round(a * b * 100) / 100;
+        } else if (nums && nums.length === 1) {
+          projectAreaM2 = parseFloat(nums[0]);
+        }
       }
       renderProjectDetail(project, invoices);
     } catch(e) {
