@@ -362,6 +362,7 @@
           <button class="btn-primary flex-1" id="btn-scan-invoice" onclick="scanInvoice()" disabled>
             🔍 Analizar con Claude AI
           </button>
+          <button class="btn-ghost flex-1" onclick="enterManualInvoice()">✏️ Ingresar manual</button>
           <button class="btn-ghost" onclick="closeModal('modal-invoice')">Cancelar</button>
         </div>
       </div>
@@ -1207,6 +1208,32 @@
     }));
     renderInvoiceItems();
     renderPriceComparisons(data.comparisons || []);
+  }
+
+  function enterManualInvoice() {
+    document.getElementById('invoice-step-upload').classList.add('hidden');
+    document.getElementById('invoice-step-review').classList.remove('hidden');
+    const banner = document.getElementById('invoice-scan-banner');
+    banner.className = 'bg-blue-900/30 border border-blue-700/40 rounded-xl p-3 mb-5 flex items-center gap-2';
+    banner.innerHTML = '<span class="text-blue-400 text-lg">✏️</span><p class="text-blue-300 text-sm">Ingreso manual — completa los campos y guarda</p>';
+    invoiceItems = [];
+    renderInvoiceItems();
+    // Pre-fill area from project dimensions
+    if (projectDimensions) {
+      const d = projectDimensions.toLowerCase();
+      const nums = d.match(/[\d.]+/g);
+      if (nums && nums.length >= 2) {
+        document.getElementById('inv-ancho').value = nums[0];
+        document.getElementById('inv-alto').value = nums[1];
+        document.getElementById('inv-area-unit').value = (parseFloat(nums[0]) > 10 || d.includes('cm')) ? 'cm' : 'm';
+        calcProjectArea();
+      }
+    }
+    // Highlight total field
+    const totalInput = document.getElementById('inv-total');
+    totalInput.style.borderColor = 'rgba(249,115,22,0.7)';
+    totalInput.style.background = '#1a0e00';
+    totalInput.placeholder = 'Se calcula solo ✏️';
   }
 
   function calcProjectArea() {
