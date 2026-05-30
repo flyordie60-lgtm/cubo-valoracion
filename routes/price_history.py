@@ -23,6 +23,8 @@ async def get_rankings(
             PriceHistory.supplier,
             func.avg(PriceHistory.unit_price).label("avg_price"),
             func.min(PriceHistory.unit_price).label("min_price"),
+            func.avg(PriceHistory.price_per_m2).label("avg_price_m2"),
+            func.min(PriceHistory.price_per_m2).label("min_price_m2"),
             func.count(PriceHistory.id).label("times_bought"),
             func.max(PriceHistory.recorded_at).label("last_date"),
         )
@@ -45,6 +47,8 @@ async def get_rankings(
             supplier=row.supplier,
             avg_price=round(row.avg_price, 2),
             min_price=round(row.min_price, 2),
+            avg_price_m2=round(row.avg_price_m2, 2) if row.avg_price_m2 else None,
+            min_price_m2=round(row.min_price_m2, 2) if row.min_price_m2 else None,
             times_bought=row.times_bought,
             last_date=row.last_date,
         )

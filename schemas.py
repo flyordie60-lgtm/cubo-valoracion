@@ -94,6 +94,9 @@ class PriceComparison(BaseModel):
     min_supplier: Optional[str]
     percent_diff: Optional[float]
     is_new: bool
+    current_price_m2: Optional[float] = None
+    avg_historical_price_m2: Optional[float] = None
+    min_historical_price_m2: Optional[float] = None
 
 
 class PriceHistoryOut(BaseModel):
@@ -105,6 +108,8 @@ class PriceHistoryOut(BaseModel):
     quantity: Optional[float]
     total: Optional[float]
     recorded_at: datetime
+    area_m2: Optional[float] = None
+    price_per_m2: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -118,6 +123,8 @@ class SupplierRankingItem(BaseModel):
     min_price: float
     times_bought: int
     last_date: datetime
+    avg_price_m2: Optional[float] = None
+    min_price_m2: Optional[float] = None
 
 
 class RankingOut(BaseModel):
@@ -135,6 +142,7 @@ class InvoiceCreate(BaseModel):
     photo_url: Optional[str] = None
     confirmed: Optional[bool] = True
     uploaded_by: Optional[str] = None
+    area_m2: Optional[float] = None
 
 
 class InvoiceOut(BaseModel):

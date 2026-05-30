@@ -41,6 +41,8 @@ class PriceHistory(Base):
     unit_price = Column(Float, nullable=True)
     total = Column(Float, nullable=True)
     recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    area_m2 = Column(Float, nullable=True)  # área del proyecto en m²
+    price_per_m2 = Column(Float, nullable=True)  # precio/m² = total_item / area_m2
 
 
 class Project(Base):
@@ -84,6 +86,7 @@ class Invoice(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     confirmed = Column(Boolean, default=False, nullable=False)
     uploaded_by = Column(String(100), nullable=True)  # username
+    area_m2 = Column(Float, nullable=True)  # área del proyecto en m²
 
     project = relationship("Project", back_populates="invoices")
 

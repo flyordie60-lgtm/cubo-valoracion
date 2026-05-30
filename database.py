@@ -49,3 +49,10 @@ async def init_db():
             )
         except Exception:
             pass
+        # Add area_m2 / price_per_m2 columns
+        try:
+            await conn.execute(__import__('sqlalchemy').text("ALTER TABLE price_history ADD COLUMN IF NOT EXISTS area_m2 FLOAT"))
+            await conn.execute(__import__('sqlalchemy').text("ALTER TABLE price_history ADD COLUMN IF NOT EXISTS price_per_m2 FLOAT"))
+            await conn.execute(__import__('sqlalchemy').text("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS area_m2 FLOAT"))
+        except Exception:
+            pass

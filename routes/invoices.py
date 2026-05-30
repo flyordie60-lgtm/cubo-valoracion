@@ -27,7 +27,7 @@ def normalize_description(text: str) -> str:
     return text
 
 
-async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = None) -> List[PriceComparison]:
+async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = None, area_m2: float = 0) -> List[PriceComparison]:
     comparisons = []
     for item in items:
         desc = item.get("description") or ""
@@ -65,16 +65,27 @@ async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = N
             continue
 
         all_prices_result = await db.execute(
-            select(func.avg(PriceHistory.unit_price), func.min(PriceHistory.unit_price))
+            select(
+                func.avg(PriceHistory.unit_price),
+                func.min(PriceHistory.unit_price),
+                func.avg(PriceHistory.price_per_m2),
+                func.min(PriceHistory.price_per_m2),
+            )
             .where(PriceHistory.item_description_normalized == norm)
             .where(PriceHistory.unit_price.isnot(None))
         )
-        avg_price, min_price = all_prices_result.one()
+        avg_price, min_price, avg_price_m2, min_price_m2 = all_prices_result.one()
         min_supplier = rows[0].supplier if rows else None
 
         percent_diff = None
         if avg_price:
             percent_diff = round(((unit_price - avg_price) / avg_price) * 100, 1)
+
+        # current price per m²
+        item_total = item.get("total")
+        current_price_m2_val = None
+        if item_total and area_m2 and area_m2 > 0:
+            current_price_m2_val = round(item_total / area_m2, 2)
 
         comparisons.append(PriceComparison(
             item_description=desc,
@@ -85,6 +96,9 @@ async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = N
             min_supplier=min_supplier,
             percent_diff=percent_diff,
             is_new=False,
+            current_price_m2=current_price_m2_val,
+            avg_historical_price_m2=round(avg_price_m2, 2) if avg_price_m2 else None,
+            min_historical_price_m2=round(min_price_m2, 2) if min_price_m2 else None,
         ))
 
     return comparisons
@@ -170,6 +184,7 @@ async def save_invoice(
         notes=invoice_data.notes,
         confirmed=invoice_data.confirmed if invoice_data.confirmed is not None else True,
         uploaded_by=invoice_data.uploaded_by,
+        area_m2=invoice_data.area_m2,
     )
     db.add(invoice)
     await db.flush()  # get invoice.id before committing
@@ -178,6 +193,9 @@ async def save_invoice(
     if invoice_data.items and invoice.confirmed:
         for item in invoice_data.items:
             if item.description and item.unit_price is not None:
+                price_per_m2_val = None
+                if item.total and invoice_data.area_m2 and invoice_data.area_m2 > 0:
+                    price_per_m2_val = round(item.total / invoice_data.area_m2, 2)
                 ph = PriceHistory(
                     invoice_id=invoice.id,
                     project_id=project_id,
@@ -188,6 +206,8 @@ async def save_invoice(
                     quantity=item.quantity,
                     unit_price=item.unit_price,
                     total=item.total,
+                    area_m2=invoice_data.area_m2,
+                    price_per_m2=price_per_m2_val,
                 )
                 db.add(ph)
 
