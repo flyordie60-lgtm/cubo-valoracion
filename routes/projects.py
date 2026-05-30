@@ -52,6 +52,7 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ):
     photo_url = None
+    print(f"[DEBUG] photo={photo}, filename={photo.filename if photo else 'NO PHOTO'}")
     if photo and photo.filename:
         try:
             file_bytes = await photo.read()
