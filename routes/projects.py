@@ -53,9 +53,15 @@ async def create_project(
 ):
     photo_url = None
     if photo and photo.filename:
-        file_bytes = await photo.read()
-        safe_name = photo.filename.replace(" ", "_")
-        photo_url = await upload_image(file_bytes, f"projects/{safe_name}", folder="cubo-valoracion/projects")
+        try:
+            file_bytes = await photo.read()
+            safe_name = photo.filename.replace(" ", "_")
+            photo_url = await upload_image(file_bytes, f"projects/{safe_name}", folder="cubo-valoracion/projects")
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] Cloudinary upload failed: {e}")
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Error subiendo imagen: {str(e)}")
 
     project = Project(
         name=name,
@@ -122,11 +128,17 @@ async def update_project(
         project.status = status
 
     if photo and photo.filename:
-        file_bytes = await photo.read()
-        safe_name = photo.filename.replace(" ", "_")
-        project.photo_url = await upload_image(
-            file_bytes, f"projects/{project_id}_{safe_name}", folder="cubo-valoracion/projects"
-        )
+        try:
+            file_bytes = await photo.read()
+            safe_name = photo.filename.replace(" ", "_")
+            project.photo_url = await upload_image(
+                file_bytes, f"projects/{project_id}_{safe_name}", folder="cubo-valoracion/projects"
+            )
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] Cloudinary upload failed: {e}")
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Error subiendo imagen: {str(e)}")
 
     await db.commit()
     await db.refresh(project)
