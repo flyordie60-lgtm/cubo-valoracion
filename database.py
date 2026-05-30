@@ -70,21 +70,37 @@ async def init_db():
         if count == 0:
             await conn.execute(_text("""
                 INSERT INTO categories (name, description, created_at) VALUES
-                ('Pinturas', 'Pinturas, esmaltes y recubrimientos', NOW()),
-                ('Cementos y Morteros', 'Cementos, morteros y adhesivos', NOW()),
-                ('Ferretería', 'Tornillos, tuercas, anclajes y elementos metálicos', NOW())
+                ('Pinturas', 'Pinturas, esmaltes y recubrimientos líquidos', NOW()),
+                ('Rígidos', 'Acrílicos, plásticos rígidos, foam board y materiales duros', NOW()),
+                ('Flexibles', 'Vinilos, laminados, telas y materiales flexibles', NOW()),
+                ('Ferretería', 'Tornillos, tuercas, anclajes y elementos metálicos', NOW()),
+                ('Servicios', 'Servicios tercerizados: instalación, diseño, transporte, etc.', NOW())
             """))
             await conn.execute(_text("""
                 INSERT INTO materials (category_id, name, description, default_unit, created_at)
                 SELECT c.id, m.name, m.description, m.default_unit, NOW()
                 FROM (VALUES
                     ('Pinturas', 'Pintura vinilo blanca', 'Pintura vinílica interior color blanco', 'lt'),
-                    ('Pinturas', 'Pintura esmalte negro', 'Esmalte brillante color negro', 'lt'),
+                    ('Pinturas', 'Pintura esmalte', 'Esmalte brillante', 'lt'),
                     ('Pinturas', 'Pintura exterior texturizada', 'Pintura para fachadas texturizada', 'lt'),
-                    ('Cementos y Morteros', 'Cemento gris 50kg', 'Cemento Portland tipo I', 'saco'),
-                    ('Cementos y Morteros', 'Mortero adhesivo', 'Adhesivo cementicio para pisos y muros', 'saco'),
-                    ('Ferretería', 'Tornillo galvanizado 2"', 'Tornillo autorroscante galvanizado 2 pulgadas', 'unidad'),
-                    ('Ferretería', 'Varilla corrugada 1/2"', 'Varilla de acero corrugado 6m', 'unidad')
+                    ('Pinturas', 'Sellador', 'Sellador para superficies', 'lt'),
+                    ('Rígidos', 'Acrílico transparente', 'Lámina de acrílico transparente', 'm²'),
+                    ('Rígidos', 'Acrílico color', 'Lámina de acrílico de color', 'm²'),
+                    ('Rígidos', 'Foam board', 'Foam board para montajes', 'm²'),
+                    ('Rígidos', 'PVC espumado', 'Lámina de PVC espumado', 'm²'),
+                    ('Rígidos', 'Dibond', 'Panel compuesto de aluminio', 'm²'),
+                    ('Flexibles', 'Vinilo adhesivo', 'Vinilo adhesivo para corte o impresión', 'm²'),
+                    ('Flexibles', 'Vinilo microperforado', 'Vinilo microperforado para ventanas', 'm²'),
+                    ('Flexibles', 'Lona', 'Lona para impresión', 'm²'),
+                    ('Flexibles', 'Laminado brillante', 'Laminado brillante de protección', 'm²'),
+                    ('Flexibles', 'Laminado mate', 'Laminado mate de protección', 'm²'),
+                    ('Ferretería', 'Tornillo autorroscante', 'Tornillo autorroscante galvanizado', 'unidad'),
+                    ('Ferretería', 'Remache', 'Remache de aluminio', 'unidad'),
+                    ('Ferretería', 'Perfil de aluminio', 'Perfil de aluminio para marcos', 'm'),
+                    ('Servicios', 'Instalación', 'Servicio de instalación en sitio', 'unidad'),
+                    ('Servicios', 'Diseño gráfico', 'Servicio de diseño gráfico', 'unidad'),
+                    ('Servicios', 'Transporte', 'Servicio de transporte y entrega', 'unidad'),
+                    ('Servicios', 'Impresión digital', 'Servicio de impresión digital', 'm²')
                 ) AS m(cat_name, name, description, default_unit)
                 JOIN categories c ON c.name = m.cat_name
             """))
