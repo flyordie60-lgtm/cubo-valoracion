@@ -83,5 +83,16 @@ class Invoice(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     confirmed = Column(Boolean, default=False, nullable=False)
+    uploaded_by = Column(String(100), nullable=True)  # username
 
     project = relationship("Project", back_populates="invoices")
+
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    display_name = Column(String(255), nullable=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(20), default="user", nullable=False)  # "admin" | "user"
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

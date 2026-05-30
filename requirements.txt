@@ -9,3 +9,5 @@ python-multipart
 python-dotenv
 httpx
 aiofiles
+python-jose[cryptography]
+passlib[bcrypt]

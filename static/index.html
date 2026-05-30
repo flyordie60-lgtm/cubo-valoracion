@@ -139,8 +139,34 @@
 </head>
 <body class="text-slate-200 min-h-screen">
 
+  <!-- ── LOGIN SCREEN ── -->
+  <div id="screen-login" class="hidden min-h-screen flex items-center justify-center px-4">
+    <div class="card rounded-2xl p-8 w-full max-w-sm">
+      <div class="flex items-center gap-3 mb-8">
+        <div class="w-10 h-10 rounded-xl bg-brand flex items-center justify-center font-black text-white text-lg">C</div>
+        <div>
+          <p class="font-bold text-white text-lg leading-none">Cubo Digital</p>
+          <p class="text-slate-400 text-xs">Valorización de Proyectos</p>
+        </div>
+      </div>
+      <h2 class="text-xl font-bold text-white mb-6">Iniciar Sesión</h2>
+      <form id="form-login" onsubmit="submitLogin(event)" class="space-y-4">
+        <div>
+          <label>Usuario</label>
+          <input type="text" id="login-username" required placeholder="nombre_usuario" autocomplete="username" />
+        </div>
+        <div>
+          <label>Contraseña</label>
+          <input type="password" id="login-password" required placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <p id="login-error" class="text-red-400 text-sm hidden"></p>
+        <button type="submit" class="btn-primary w-full" id="btn-login">Entrar</button>
+      </form>
+    </div>
+  </div>
+
   <!-- ── NAVBAR ── -->
-  <nav class="sticky top-0 z-40 border-b border-orange-900/30" style="background:#0d0d1a">
+  <nav id="app-nav" class="sticky top-0 z-40 border-b border-orange-900/30 hidden" style="background:#0d0d1a">
     <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center font-black text-white text-sm">C</div>
@@ -148,7 +174,7 @@
         <span class="text-slate-500 hidden sm:block">·</span>
         <span class="text-slate-400 text-sm hidden sm:block">Valorización</span>
       </div>
-      <div class="flex items-center gap-6">
+      <div class="flex items-center gap-4 sm:gap-6">
         <span id="nav-dashboard" class="nav-link active text-sm font-medium pb-1"
               onclick="showView('dashboard')">Dashboard</span>
         <span id="nav-projects" class="nav-link text-sm font-medium pb-1"
@@ -157,12 +183,18 @@
               onclick="showView('clients')">Clientes</span>
         <span id="nav-prices" class="nav-link text-sm font-medium pb-1"
               onclick="showView('prices')">📊 Precios</span>
+        <span id="nav-users" class="nav-link text-sm font-medium pb-1 hidden"
+              onclick="openUsersModal()">👥 Usuarios</span>
+        <div class="flex items-center gap-2 ml-2">
+          <span id="nav-username" class="text-slate-400 text-sm hidden sm:block"></span>
+          <button class="btn-ghost text-xs py-1 px-3" onclick="logout()">Salir</button>
+        </div>
       </div>
     </div>
   </nav>
 
   <!-- ── MAIN ── -->
-  <main class="max-w-7xl mx-auto px-4 py-8">
+  <main id="app-main" class="max-w-7xl mx-auto px-4 py-8 hidden">
 
     <!-- DASHBOARD VIEW -->
     <div id="view-dashboard">
@@ -461,6 +493,38 @@
     </div>
   </div>
 
+  <!-- Users Modal -->
+  <div id="modal-users" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:520px">
+      <h2 class="text-xl font-bold text-white mb-6">👥 Gestión de Usuarios</h2>
+      <div id="users-list" class="space-y-2 mb-6">
+        <p class="text-slate-500 text-sm">Cargando...</p>
+      </div>
+      <hr class="border-slate-700 mb-5" />
+      <h3 class="font-semibold text-white mb-4">Crear Nuevo Usuario</h3>
+      <form id="form-new-user" onsubmit="submitNewUser(event)" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label>Usuario *</label>
+            <input type="text" id="new-user-username" required placeholder="nombre_usuario" />
+          </div>
+          <div>
+            <label>Nombre a mostrar</label>
+            <input type="text" id="new-user-display" placeholder="Juan Pérez" />
+          </div>
+        </div>
+        <div>
+          <label>Contraseña *</label>
+          <input type="password" id="new-user-password" required placeholder="••••••••" />
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="submit" class="btn-primary flex-1" id="btn-create-user">Crear Usuario</button>
+          <button type="button" class="btn-ghost" onclick="closeModal('modal-users')">Cerrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Camera Modal -->
   <div id="modal-camera" class="modal-overlay hidden" style="z-index:60">
     <div class="modal-box" style="max-width:500px">
@@ -487,6 +551,8 @@
   let pendingDeleteFn = null;
   let invoiceItems = [];
   let clientsCache = [];
+  let currentUser = null;  // { token, username, display_name, role }
+  let editingInvoiceId = null;
 
   // ─────────────────────────────────────────────
   // UTILS
@@ -526,7 +592,15 @@
   }
 
   async function api(path, opts={}) {
+    opts.headers = opts.headers || {};
+    if (currentUser && currentUser.token) {
+      opts.headers['Authorization'] = 'Bearer ' + currentUser.token;
+    }
     const res = await fetch(path, opts);
+    if (res.status === 401) {
+      logout();
+      throw new Error('Sesión expirada. Por favor inicia sesión de nuevo.');
+    }
     if (!res.ok) {
       let err = 'Error del servidor';
       try { const d = await res.json(); err = d.detail || JSON.stringify(d); } catch {}
@@ -921,7 +995,11 @@
           </div>
           <div class="text-right flex-shrink-0">
             <p class="font-bold text-brand text-lg">${COP(inv.total_amount)}</p>
-            <button class="btn-danger mt-2 text-xs" onclick="confirmDeleteInvoice(${inv.id}, ${projectId})">🗑</button>
+            <p class="text-slate-500 text-xs mt-1">👤 ${inv.uploaded_by || 'desconocido'}</p>
+            <div class="flex gap-1 mt-2 justify-end">
+              <button class="btn-ghost text-xs py-1 px-2" onclick="openEditInvoice(${inv.id}, ${projectId})">✏️</button>
+              <button class="btn-danger text-xs" onclick="confirmDeleteInvoice(${inv.id}, ${projectId})">🗑</button>
+            </div>
           </div>
         </div>
       </div>`).join('')}</div>`;
@@ -937,10 +1015,71 @@
     document.getElementById('modal-invoice').classList.remove('hidden');
   }
 
+  async function openEditInvoice(invoiceId, projectId) {
+    currentProjectId = projectId;
+    try {
+      const invoices = await api(`/api/projects/${projectId}/invoices`);
+      const inv = invoices.find(i => i.id === invoiceId);
+      if (!inv) { toast('Factura no encontrada', true); return; }
+
+      editingInvoiceId = invoiceId;
+      scannedInvoiceData = { photo_url: inv.photo_url };
+
+      document.getElementById('modal-invoice-project-name').textContent = 'Editando factura existente';
+      // Hide upload/scanning, show review
+      document.getElementById('invoice-step-upload').classList.add('hidden');
+      document.getElementById('invoice-step-scanning').classList.add('hidden');
+      document.getElementById('invoice-step-review').classList.remove('hidden');
+
+      // Fill fields
+      document.getElementById('inv-supplier').value = inv.supplier || '';
+      document.getElementById('inv-number').value = inv.invoice_number || '';
+      document.getElementById('inv-date').value = inv.invoice_date || '';
+      document.getElementById('inv-total').value = inv.total_amount || '';
+      document.getElementById('inv-notes').value = inv.notes || '';
+      const cur = document.getElementById('inv-currency');
+      if (inv.currency) cur.value = inv.currency;
+
+      // Banner
+      const banner = document.getElementById('invoice-scan-banner');
+      banner.className = 'bg-blue-900/30 border border-blue-700/40 rounded-xl p-3 mb-5 flex items-center gap-2';
+      banner.innerHTML = '<span class="text-blue-400 text-lg">✏️</span><p class="text-blue-300 text-sm">Modo edición — modifica los campos y guarda</p>';
+
+      // Photo preview
+      const preview = document.getElementById('inv-photo-preview');
+      if (inv.photo_url) {
+        preview.src = inv.photo_url;
+        preview.classList.remove('hidden');
+      } else {
+        preview.classList.add('hidden');
+      }
+
+      // Items
+      invoiceItems = (inv.items || []).map(it => ({
+        description: it.description || '',
+        quantity: it.quantity || '',
+        unit: it.unit || '',
+        unit_price: it.unit_price || '',
+        total: it.total || '',
+      }));
+      renderInvoiceItems();
+      document.getElementById('price-comparisons-container').innerHTML = '';
+
+      // Change button label
+      const confirmBtn = document.querySelector('#invoice-step-review .btn-primary');
+      if (confirmBtn) confirmBtn.textContent = '💾 Guardar Cambios';
+
+      document.getElementById('modal-invoice').classList.remove('hidden');
+    } catch(e) {
+      toast('Error cargando factura: ' + e.message, true);
+    }
+  }
+
   function resetInvoiceModal() {
     scannedInvoiceData = null;
     invoicePhotoFile = null;
     invoiceItems = [];
+    editingInvoiceId = null;
     document.getElementById('invoice-photo-input').value = '';
     document.getElementById('invoice-upload-preview').classList.add('hidden');
     document.getElementById('btn-scan-invoice').disabled = true;
@@ -949,6 +1088,9 @@
     document.getElementById('invoice-step-review').classList.add('hidden');
     const cmp = document.getElementById('price-comparisons-container');
     if (cmp) cmp.innerHTML = '';
+    // Reset confirm button text
+    const confirmBtn = document.querySelector('#invoice-step-review .btn-primary');
+    if (confirmBtn) confirmBtn.textContent = '💾 Confirmar y Guardar';
   }
 
   function handleInvoicePhoto(e) {
@@ -1098,15 +1240,25 @@
         total: parseFloat(it.total) || null,
       })),
       confirmed: true,
+      uploaded_by: currentUser ? currentUser.username : null,
     };
 
     try {
-      await api(`/api/projects/${currentProjectId}/invoices`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      toast('Factura guardada ✓');
+      if (editingInvoiceId) {
+        await api(`/api/invoices/${editingInvoiceId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        toast('Factura actualizada ✓');
+      } else {
+        await api(`/api/projects/${currentProjectId}/invoices`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        toast('Factura guardada ✓');
+      }
       closeModal('modal-invoice');
       openProjectDetail(currentProjectId);
     } catch(e) {
@@ -1331,9 +1483,139 @@
   });
 
   // ─────────────────────────────────────────────
+  // AUTH
+  // ─────────────────────────────────────────────
+  async function submitLogin(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-login');
+    const errEl = document.getElementById('login-error');
+    errEl.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+    try {
+      const data = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('login-username').value,
+          password: document.getElementById('login-password').value,
+        }),
+      });
+      if (!data.ok) {
+        const d = await data.json();
+        throw new Error(d.detail || 'Error al iniciar sesión');
+      }
+      const result = await data.json();
+      currentUser = result;
+      localStorage.setItem('cubo_user', JSON.stringify(result));
+      showApp();
+    } catch(err) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+  }
+
+  function logout() {
+    currentUser = null;
+    localStorage.removeItem('cubo_user');
+    showLogin();
+  }
+
+  function showLogin() {
+    document.getElementById('screen-login').classList.remove('hidden');
+    document.getElementById('app-nav').classList.add('hidden');
+    document.getElementById('app-main').classList.add('hidden');
+  }
+
+  function showApp() {
+    document.getElementById('screen-login').classList.add('hidden');
+    document.getElementById('app-nav').classList.remove('hidden');
+    document.getElementById('app-main').classList.remove('hidden');
+    // Show username
+    document.getElementById('nav-username').textContent =
+      currentUser.display_name || currentUser.username;
+    // Show users link if admin
+    if (currentUser.role === 'admin') {
+      document.getElementById('nav-users').classList.remove('hidden');
+    }
+    loadDashboard();
+    showView('dashboard');
+  }
+
+  // ─────────────────────────────────────────────
+  // USERS MANAGEMENT
+  // ─────────────────────────────────────────────
+  async function openUsersModal() {
+    document.getElementById('modal-users').classList.remove('hidden');
+    await loadUsersList();
+  }
+
+  async function loadUsersList() {
+    const container = document.getElementById('users-list');
+    container.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
+    try {
+      const users = await api('/api/auth/users');
+      if (!users.length) {
+        container.innerHTML = '<p class="text-slate-500 text-sm">Sin usuarios.</p>';
+        return;
+      }
+      container.innerHTML = users.map(u => `
+        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-800/50">
+          <div>
+            <span class="font-semibold text-white text-sm">${u.display_name || u.username}</span>
+            <span class="text-slate-400 text-xs ml-2">@${u.username}</span>
+            <span class="ml-2 text-xs px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-brand/20 text-brand' : 'bg-slate-700 text-slate-400'}">${u.role}</span>
+          </div>
+          <span class="text-slate-500 text-xs">${new Date(u.created_at).toLocaleDateString('es-CO')}</span>
+        </div>`).join('');
+    } catch(e) {
+      container.innerHTML = `<p class="text-red-400 text-sm">Error: ${e.message}</p>`;
+    }
+  }
+
+  async function submitNewUser(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-create-user');
+    btn.disabled = true;
+    btn.textContent = 'Creando...';
+    try {
+      await api('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('new-user-username').value,
+          display_name: document.getElementById('new-user-display').value || null,
+          password: document.getElementById('new-user-password').value,
+        }),
+      });
+      toast('Usuario creado ✓');
+      document.getElementById('form-new-user').reset();
+      await loadUsersList();
+    } catch(err) {
+      toast('Error: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Crear Usuario';
+    }
+  }
+
+  // ─────────────────────────────────────────────
   // INIT
   // ─────────────────────────────────────────────
-  loadDashboard();
+  const saved = localStorage.getItem('cubo_user');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      showApp();
+    } catch {
+      showLogin();
+    }
+  } else {
+    showLogin();
+  }
   </script>
 </body>
 </html>

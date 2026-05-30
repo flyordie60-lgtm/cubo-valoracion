@@ -169,6 +169,7 @@ async def save_invoice(
         items=items_json,
         notes=invoice_data.notes,
         confirmed=invoice_data.confirmed if invoice_data.confirmed is not None else True,
+        uploaded_by=invoice_data.uploaded_by,
     )
     db.add(invoice)
     await db.flush()  # get invoice.id before committing
@@ -189,6 +190,27 @@ async def save_invoice(
                     total=item.total,
                 )
                 db.add(ph)
+
+    await db.commit()
+    await db.refresh(invoice)
+    return invoice
+
+
+@router.put("/api/invoices/{invoice_id}", response_model=InvoiceOut)
+async def update_invoice(invoice_id: int, invoice_data: InvoiceCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    for field in ['supplier', 'invoice_number', 'invoice_date', 'total_amount', 'currency', 'notes', 'photo_url', 'uploaded_by']:
+        val = getattr(invoice_data, field, None)
+        if val is not None:
+            setattr(invoice, field, val)
+    if invoice_data.items is not None:
+        invoice.items = [item.model_dump() for item in invoice_data.items]
+    if invoice_data.confirmed is not None:
+        invoice.confirmed = invoice_data.confirmed
 
     await db.commit()
     await db.refresh(invoice)

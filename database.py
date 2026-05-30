@@ -28,7 +28,7 @@ async def get_db():
 
 
 async def init_db():
-    from models import Project, Invoice, Client, PriceHistory  # noqa: F401
+    from models import Project, Invoice, Client, PriceHistory, User  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # Add client_id column to projects if it doesn't exist yet
@@ -36,6 +36,15 @@ async def init_db():
             await conn.execute(
                 __import__('sqlalchemy').text(
                     "ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL"
+                )
+            )
+        except Exception:
+            pass
+        # Add uploaded_by column to invoices if it doesn't exist yet
+        try:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS uploaded_by VARCHAR(100)"
                 )
             )
         except Exception:

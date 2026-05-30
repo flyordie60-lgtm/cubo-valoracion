@@ -134,6 +134,7 @@ class InvoiceCreate(BaseModel):
     notes: Optional[str] = None
     photo_url: Optional[str] = None
     confirmed: Optional[bool] = True
+    uploaded_by: Optional[str] = None
 
 
 class InvoiceOut(BaseModel):
@@ -149,6 +150,7 @@ class InvoiceOut(BaseModel):
     notes: Optional[str]
     created_at: datetime
     confirmed: bool
+    uploaded_by: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -176,3 +178,34 @@ class DashboardOut(BaseModel):
     active_projects: int
     total_spent: float
     recent_invoices: List[InvoiceOut]
+
+
+# ── Auth schemas ─────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    username: str
+    display_name: Optional[str] = None
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    display_name: Optional[str]
+    role: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TokenOut(BaseModel):
+    token: str
+    username: str
+    display_name: Optional[str]
+    role: str
