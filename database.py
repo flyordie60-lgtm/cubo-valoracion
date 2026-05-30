@@ -70,8 +70,25 @@ async def init_db():
             ))
         except Exception:
             pass
-        # Seed example categories/materials if none exist
+        # Add unique constraint on categories.name if not exists
+        try:
+            await conn.execute(__import__('sqlalchemy').text(
+                "ALTER TABLE categories ADD CONSTRAINT categories_name_unique UNIQUE (name)"
+            ))
+        except Exception:
+            pass
+        # Ensure all base categories exist (upsert by name)
         from sqlalchemy import text as _text
+        await conn.execute(_text("""
+            INSERT INTO categories (name, description, created_at)
+            VALUES
+                ('Pinturas',    'Pinturas, esmaltes y recubrimientos líquidos', NOW()),
+                ('Rígidos',     'Acrílicos, plásticos rígidos, foam board y materiales duros', NOW()),
+                ('Flexibles',   'Vinilos, laminados, telas y materiales flexibles', NOW()),
+                ('Ferretería',  'Tornillos, tuercas, anclajes y elementos metálicos', NOW()),
+                ('Servicios',   'Servicios tercerizados: instalación, diseño, transporte, etc.', NOW())
+            ON CONFLICT (name) DO NOTHING
+        """))
         result = await conn.execute(_text("SELECT COUNT(*) FROM categories"))
         count = result.scalar()
         if count == 0:

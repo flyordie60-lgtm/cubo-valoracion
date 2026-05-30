@@ -1373,7 +1373,8 @@
       return;
     }
     const unitOptions = ['','m²','m','m³','kg','lt','unidad','caja','rollo','saco','galón','bolsa','par','juego','ml'];
-    c.innerHTML = `
+    c.innerHTML = `<div style="overflow-x:auto">
+      <div style="min-width:700px">
       <div class="gap-2 text-xs text-slate-400 font-medium mb-1 px-1" style="display:grid;grid-template-columns:3fr 2fr 1fr 1fr 2fr 2fr 1fr 1fr">
         <div>Descripción</div>
         <div>Marca</div>
@@ -1427,7 +1428,8 @@
             <button type="button" class="text-red-400 hover:text-red-300 text-lg leading-none"
               onclick="removeInvoiceItem(${i})">×</button>
           </div>
-        </div>`}).join('')}`;
+        </div>`}).join('')}
+      </div></div>`;
   }
 
   function addInvoiceItem() {
