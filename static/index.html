@@ -404,9 +404,16 @@
               </select>
             </div>
           </div>
-          <div>
-            <label>Total</label>
-            <input type="number" id="inv-total" placeholder="0" step="0.01" />
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label>Total Factura</label>
+              <input type="number" id="inv-total" placeholder="0" step="0.01" />
+            </div>
+            <div>
+              <label>Área del proyecto (m²)</label>
+              <input type="number" id="inv-area-m2" placeholder="Ej: 50" step="0.01"
+                oninput="projectAreaM2 = parseFloat(this.value)||0; renderInvoiceItems()" />
+            </div>
           </div>
           <div>
             <label>Notas</label>
@@ -553,6 +560,7 @@
   let clientsCache = [];
   let currentUser = null;  // { token, username, display_name, role }
   let editingInvoiceId = null;
+  let projectAreaM2 = 0;
 
   // ─────────────────────────────────────────────
   // UTILS
@@ -908,6 +916,12 @@
         api(`/api/projects/${id}`),
         api(`/api/projects/${id}/invoices`)
       ]);
+      // Try to parse project area from dimensions string (e.g. "50", "50 m2", "10x5")
+      if (project.dimensions) {
+        const nums = project.dimensions.match(/[\d.]+/g);
+        if (nums && nums.length === 1) projectAreaM2 = parseFloat(nums[0]);
+        else if (nums && nums.length >= 2) projectAreaM2 = parseFloat(nums[0]) * parseFloat(nums[1]);
+      }
       renderProjectDetail(project, invoices);
     } catch(e) {
       container.innerHTML = `<p class="text-red-400">Error: ${e.message}</p>`;
@@ -1012,6 +1026,9 @@
     currentProjectId = projectId;
     document.getElementById('modal-invoice-project-name').textContent = projectName;
     resetInvoiceModal();
+    if (projectAreaM2 > 0) {
+      document.getElementById('inv-area-m2').value = projectAreaM2;
+    }
     document.getElementById('modal-invoice').classList.remove('hidden');
   }
 
@@ -1179,16 +1196,15 @@
     const it = invoiceItems[i];
     const q = parseFloat(it.quantity) || 0;
     const p = parseFloat(it.unit_price) || 0;
-    if (q && p) {
-      invoiceItems[i].total = q * p;
-      // update total input in DOM
+    if (q > 0 && p > 0) {
+      invoiceItems[i].total = Math.round(q * p);
       const row = document.querySelector(`[data-item="${i}"]`);
-      if (row) row.querySelector('.item-total-input').value = invoiceItems[i].total;
-      // update $/m² display
-      updateM2Display(i);
-      // update invoice total
-      recalcInvoiceTotal();
+      if (row) {
+        row.querySelector('.item-total-input').value = invoiceItems[i].total;
+      }
     }
+    updateM2Display(i);
+    recalcInvoiceTotal();
   }
 
   function updateM2Display(i) {
@@ -1196,24 +1212,15 @@
     const row = document.querySelector(`[data-item="${i}"]`);
     if (!row) return;
     const m2el = row.querySelector('.item-m2');
-    const renderEl = row.querySelector('.item-rendimiento');
     if (!m2el) return;
-
-    const p = parseFloat(it.unit_price) || 0;
-
-    if (it.unit === 'm²') {
-      // Price per m² = unit price directly
-      m2el.textContent = p ? '$' + fmtNum(p) + '/m²' : '—';
-      if (renderEl) renderEl.classList.add('hidden');
+    const itemTotal = parseFloat(it.total) || 0;
+    const area = projectAreaM2;
+    if (itemTotal > 0 && area > 0) {
+      m2el.textContent = '$' + fmtNum(itemTotal / area) + '/m²';
+    } else if (area === 0) {
+      m2el.textContent = 'Sin área';
     } else {
-      // Show rendimiento field and calculate $/m² = unit_price / rendimiento_m2
-      if (renderEl) renderEl.classList.remove('hidden');
-      const rend = parseFloat(it.rendimiento_m2) || 0;
-      if (p && rend) {
-        m2el.textContent = '$' + fmtNum(p / rend) + '/m²';
-      } else {
-        m2el.textContent = rend === 0 ? 'Ingresa rend.' : '—';
-      }
+      m2el.textContent = '—';
     }
   }
 
@@ -1248,9 +1255,9 @@
         const q = parseFloat(it.quantity) || 0;
         const p = parseFloat(it.unit_price) || 0;
         const total = parseFloat(it.total) || (q && p ? q * p : '');
-        const isM2 = it.unit === 'm²';
-        const rend = parseFloat(it.rendimiento_m2) || 0;
-        const pricePerM2 = isM2 ? p : (p && rend ? p / rend : null);
+        const itemTotal = parseFloat(it.total) || (q && p ? Math.round(q * p) : '');
+        const area = projectAreaM2;
+        const m2text = itemTotal && area > 0 ? '$' + fmtNum(itemTotal / area) + '/m²' : (area === 0 ? 'Sin área' : '—');
         return `
         <div class="grid grid-cols-12 gap-2 items-center text-sm" data-item="${i}">
           <div class="col-span-3">
@@ -1258,27 +1265,24 @@
               oninput="invoiceItems[${i}].description=this.value" />
           </div>
           <div class="col-span-2">
-            <select onchange="invoiceItems[${i}].unit=this.value; renderInvoiceItems()">
+            <select onchange="invoiceItems[${i}].unit=this.value; updateM2Display(${i})">
               ${unitOptions.map(u => `<option value="${u}" ${it.unit===u?'selected':''}>${u||'Unidad'}</option>`).join('')}
             </select>
           </div>
           <div class="col-span-1">
             <input type="number" placeholder="0" value="${it.quantity}"
-              oninput="invoiceItems[${i}].quantity=parseFloat(this.value)||''; calcItemTotal(${i})" />
+              oninput="invoiceItems[${i}].quantity=parseFloat(this.value)||0; calcItemTotal(${i})" />
           </div>
           <div class="col-span-2">
             <input type="number" placeholder="0" value="${it.unit_price}"
               style="${!it.unit_price ? 'border-color:rgba(249,115,22,0.7);background:#1a0e00' : ''}"
-              oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||''; this.style.borderColor=''; this.style.background=''; calcItemTotal(${i})" />
-            ${!isM2 ? `<input type="number" placeholder="Rinde m²/unidad" value="${it.rendimiento_m2||''}" class="item-rendimiento mt-1 text-xs" style="font-size:11px"
-              title="¿Cuántos m² rinde 1 ${it.unit||'unidad'}? Ej: 1 galón rinde 10m²"
-              oninput="invoiceItems[${i}].rendimiento_m2=parseFloat(this.value)||''; updateM2Display(${i})" />` : ''}
+              oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||0; this.style.borderColor=''; this.style.background=''; calcItemTotal(${i})" />
           </div>
           <div class="col-span-2">
-            <input type="number" placeholder="0" value="${total || ''}" class="item-total-input"
-              oninput="invoiceItems[${i}].total=parseFloat(this.value)||''; updateM2Display(${i}); recalcInvoiceTotal()" />
+            <input type="number" placeholder="0" value="${itemTotal || ''}" class="item-total-input"
+              oninput="invoiceItems[${i}].total=parseFloat(this.value)||0; updateM2Display(${i}); recalcInvoiceTotal()" />
           </div>
-          <div class="col-span-1 text-brand text-xs item-m2">${pricePerM2 ? '$'+fmtNum(pricePerM2)+'/m²' : '—'}</div>
+          <div class="col-span-1 text-brand text-xs item-m2">${m2text}</div>
           <div class="col-span-1 text-center">
             <button type="button" class="text-red-400 hover:text-red-300 text-lg leading-none"
               onclick="removeInvoiceItem(${i})">×</button>
