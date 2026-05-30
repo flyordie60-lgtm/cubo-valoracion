@@ -1572,9 +1572,9 @@
               <tr class="text-slate-400 text-xs border-b border-slate-700">
                 <th class="text-left pb-2">Proveedor</th>
                 <th class="text-left pb-2">Marca</th>
-                <th class="text-right pb-2">P. mínimo</th>
-                <th class="text-right pb-2">P. promedio</th>
-                ${hasM2 ? '<th class="text-right pb-2">$/m² mín</th><th class="text-right pb-2">$/m² prom</th>' : ''}
+                <th class="text-right pb-2">Precio</th>
+                <th class="text-right pb-2">Histór. más bajo</th>
+                ${hasM2 ? '<th class="text-right pb-2">$/m²</th><th class="text-right pb-2">$/m² hist. mín</th>' : ''}
                 <th class="text-right pb-2">Compras</th>
                 <th class="text-right pb-2">Última vez</th>
               </tr>`; })()}
@@ -1585,9 +1585,9 @@
                 return `<tr class="border-b border-slate-800/50 ${isBest ? 'text-green-400' : 'text-slate-300'}">
                   <td class="py-2">${isBest ? '🏆 ' : ''}${s.supplier}</td>
                   <td class="py-2">${s.brand || '—'}</td>
-                  <td class="text-right py-2">$${fmtNum(s.min_price)}</td>
                   <td class="text-right py-2">$${fmtNum(s.avg_price)}</td>
-                  ${hasM2 ? `<td class="text-right py-2">${s.min_price_m2 != null ? '$'+fmtNum(s.min_price_m2)+'/m²' : '—'}</td><td class="text-right py-2">${s.avg_price_m2 != null ? '$'+fmtNum(s.avg_price_m2)+'/m²' : '—'}</td>` : ''}
+                  <td class="text-right py-2">$${fmtNum(s.min_price)}</td>
+                  ${hasM2 ? `<td class="text-right py-2">${s.avg_price_m2 != null ? '$'+fmtNum(s.avg_price_m2)+'/m²' : '—'}</td><td class="text-right py-2">${s.min_price_m2 != null ? '$'+fmtNum(s.min_price_m2)+'/m²' : '—'}</td>` : ''}
                   <td class="text-right py-2">${s.times_bought}</td>
                   <td class="text-right py-2">${new Date(s.last_date).toLocaleDateString('es-CO')}</td>
                 </tr>`;
