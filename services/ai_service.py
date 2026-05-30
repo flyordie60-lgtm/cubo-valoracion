@@ -21,6 +21,7 @@ Devuelve ÚNICAMENTE el JSON sin texto adicional, con esta estructura exacta:
     {
       "description": "descripción del ítem (string o null)",
       "quantity": cantidad numérica (number o null),
+      "unit": "unidad de medida: m², m, m³, kg, lt, unidad, caja, rollo, saco, galón, etc. (string o null)",
       "unit_price": precio unitario numérico (number o null),
       "total": total del ítem numérico (number o null)
     }

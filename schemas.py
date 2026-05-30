@@ -80,8 +80,48 @@ class ProjectOut(BaseModel):
 class InvoiceItem(BaseModel):
     description: Optional[str] = None
     quantity: Optional[float] = None
+    unit: Optional[str] = None
     unit_price: Optional[float] = None
     total: Optional[float] = None
+
+
+class PriceComparison(BaseModel):
+    item_description: str
+    unit: Optional[str]
+    current_unit_price: Optional[float]
+    avg_historical_price: Optional[float]
+    min_historical_price: Optional[float]
+    min_supplier: Optional[str]
+    percent_diff: Optional[float]
+    is_new: bool
+
+
+class PriceHistoryOut(BaseModel):
+    id: int
+    supplier: Optional[str]
+    item_description: str
+    unit: Optional[str]
+    unit_price: Optional[float]
+    quantity: Optional[float]
+    total: Optional[float]
+    recorded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SupplierRankingItem(BaseModel):
+    item_description: str
+    unit: Optional[str]
+    supplier: str
+    avg_price: float
+    min_price: float
+    times_bought: int
+    last_date: datetime
+
+
+class RankingOut(BaseModel):
+    rankings: List[SupplierRankingItem]
 
 
 class InvoiceCreate(BaseModel):
@@ -126,6 +166,7 @@ class ScanResult(BaseModel):
     items: Optional[List[InvoiceItem]]
     notes: Optional[str]
     raw_text: Optional[str] = None
+    comparisons: Optional[List[PriceComparison]] = None
 
 
 # ── Dashboard ────────────────────────────────────────────────────

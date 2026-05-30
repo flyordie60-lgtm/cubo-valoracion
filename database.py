@@ -28,7 +28,7 @@ async def get_db():
 
 
 async def init_db():
-    from models import Project, Invoice, Client  # noqa: F401
+    from models import Project, Invoice, Client, PriceHistory  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # Add client_id column to projects if it doesn't exist yet

@@ -27,6 +27,22 @@ class Client(Base):
     projects = relationship("Project", back_populates="client")
 
 
+class PriceHistory(Base):
+    __tablename__ = "price_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    invoice_id = Column(Integer, ForeignKey("invoices.id", ondelete="CASCADE"), nullable=True)
+    project_id = Column(Integer, nullable=True)
+    supplier = Column(String(255), nullable=True)
+    item_description = Column(Text, nullable=False)
+    item_description_normalized = Column(Text, nullable=False)
+    unit = Column(String(50), nullable=True)
+    quantity = Column(Float, nullable=True)
+    unit_price = Column(Float, nullable=True)
+    total = Column(Float, nullable=True)
+    recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class Project(Base):
     __tablename__ = "projects"
 

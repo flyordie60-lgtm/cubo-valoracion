@@ -155,6 +155,8 @@
               onclick="showView('projects')">Proyectos</span>
         <span id="nav-clients" class="nav-link text-sm font-medium pb-1"
               onclick="showView('clients')">Clientes</span>
+        <span id="nav-prices" class="nav-link text-sm font-medium pb-1"
+              onclick="showView('prices')">📊 Precios</span>
       </div>
     </div>
   </nav>
@@ -213,6 +215,21 @@
     </div>
 
     <!-- CLIENTS LIST VIEW -->
+    <!-- PRICES VIEW -->
+    <div id="view-prices" class="hidden">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-2xl font-bold text-white mb-1">Ranking de Precios</h1>
+          <p class="text-slate-400 text-sm">Comparativo histórico de precios por material y proveedor</p>
+        </div>
+        <input type="text" id="prices-search" placeholder="Buscar material..." style="width:220px"
+          oninput="filterPriceRankings(this.value)" />
+      </div>
+      <div id="prices-table-container">
+        <p class="text-slate-500 text-sm">Cargando...</p>
+      </div>
+    </div>
+
     <div id="view-clients" class="hidden">
       <div class="flex items-center justify-between mb-8">
         <div>
@@ -269,8 +286,7 @@
             <label>Imagen del Proyecto</label>
             <div class="flex gap-2 items-center">
               <input type="file" id="proj-photo" accept="image/*" style="padding:6px;flex:1" />
-              <input type="file" id="proj-photo-camera" accept="image/*" capture="environment" class="hidden" onchange="document.getElementById('proj-photo').files = this.files" />
-              <button type="button" onclick="document.getElementById('proj-photo-camera').click()"
+              <button type="button" onclick="openCamera('project')"
                 style="background:#0d0d1a;border:1px solid rgba(249,115,22,0.3);color:#94a3b8;border-radius:6px;padding:8px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0"
                 title="Tomar foto con cámara">📷 Cámara</button>
             </div>
@@ -302,9 +318,7 @@
           <button type="button" class="btn-ghost flex-1 text-sm" onclick="document.getElementById('invoice-photo-input').click()">
             🖼 Elegir archivo
           </button>
-          <input type="file" id="invoice-photo-camera" accept="image/*" capture="environment" class="hidden"
-            onchange="handleInvoicePhoto(event); document.getElementById('invoice-photo-input').files = this.files" />
-          <button type="button" class="btn-ghost flex-1 text-sm" onclick="document.getElementById('invoice-photo-camera').click()">
+          <button type="button" class="btn-ghost flex-1 text-sm" onclick="openCamera('invoice')">
             📷 Tomar foto
           </button>
         </div>
@@ -376,6 +390,8 @@
           </div>
         </div>
 
+        <div id="price-comparisons-container"></div>
+
         <div class="mt-4">
           <img id="inv-photo-preview" class="max-h-40 rounded-lg object-contain hidden" />
         </div>
@@ -445,6 +461,21 @@
     </div>
   </div>
 
+  <!-- Camera Modal -->
+  <div id="modal-camera" class="modal-overlay hidden" style="z-index:60">
+    <div class="modal-box" style="max-width:500px">
+      <h2 class="text-lg font-bold text-white mb-4">📷 Tomar Foto</h2>
+      <div class="relative rounded-xl overflow-hidden bg-black" style="aspect-ratio:4/3">
+        <video id="camera-video" autoplay playsinline class="w-full h-full object-cover"></video>
+        <canvas id="camera-canvas" class="hidden"></canvas>
+      </div>
+      <div class="flex gap-3 mt-4">
+        <button class="btn-primary flex-1" onclick="capturePhoto()">📸 Capturar</button>
+        <button class="btn-ghost flex-1" onclick="closeCamera()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <script>
   // ─────────────────────────────────────────────
   // STATE
@@ -460,6 +491,13 @@
   // ─────────────────────────────────────────────
   // UTILS
   // ─────────────────────────────────────────────
+  const fmtNum = v => {
+    if (v == null || v === '') return '—';
+    const num = parseFloat(v);
+    if (isNaN(num)) return '—';
+    return num.toLocaleString('es-CO', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  };
+
   const COP = v => {
     if (v == null || v === '') return '—';
     const num = parseFloat(v);
@@ -498,16 +536,18 @@
   }
 
   function showView(v) {
-    ['dashboard','projects','project-detail','clients'].forEach(n => {
+    ['dashboard','projects','project-detail','clients','prices'].forEach(n => {
       document.getElementById('view-'+n).classList.toggle('hidden', n !== v);
     });
     document.getElementById('nav-dashboard').classList.toggle('active', v==='dashboard');
     document.getElementById('nav-projects').classList.toggle('active', v==='projects'||v==='project-detail');
     document.getElementById('nav-clients').classList.toggle('active', v==='clients');
+    document.getElementById('nav-prices').classList.toggle('active', v==='prices');
     currentView = v;
     if (v === 'dashboard') loadDashboard();
     if (v === 'projects') loadProjects();
     if (v === 'clients') loadClients();
+    if (v === 'prices') loadPriceRankings();
   }
 
   function closeModal(id) {
@@ -907,6 +947,8 @@
     document.getElementById('invoice-step-upload').classList.remove('hidden');
     document.getElementById('invoice-step-scanning').classList.add('hidden');
     document.getElementById('invoice-step-review').classList.add('hidden');
+    const cmp = document.getElementById('price-comparisons-container');
+    if (cmp) cmp.innerHTML = '';
   }
 
   function handleInvoicePhoto(e) {
@@ -963,10 +1005,12 @@
     invoiceItems = (data.items || []).map(it => ({
       description: it.description || '',
       quantity: it.quantity || '',
+      unit: it.unit || '',
       unit_price: it.unit_price || '',
       total: it.total || ''
     }));
     renderInvoiceItems();
+    renderPriceComparisons(data.comparisons || []);
   }
 
   function renderInvoiceItems() {
@@ -975,11 +1019,17 @@
       c.innerHTML = '<p class="text-slate-500 text-xs">Sin ítems. Agrega líneas si lo necesitas.</p>';
       return;
     }
+    const unitOptions = ['','m²','m','m³','kg','lt','unidad','caja','rollo','saco','galón','bolsa','par','juego','ml'];
     c.innerHTML = invoiceItems.map((it, i) => `
       <div class="grid grid-cols-12 gap-2 items-center text-sm" data-item="${i}">
-        <div class="col-span-5">
+        <div class="col-span-4">
           <input type="text" placeholder="Descripción" value="${it.description}"
             oninput="invoiceItems[${i}].description=this.value" />
+        </div>
+        <div class="col-span-2">
+          <select onchange="invoiceItems[${i}].unit=this.value">
+            ${unitOptions.map(u => `<option value="${u}" ${it.unit===u?'selected':''}>${u||'Unidad'}</option>`).join('')}
+          </select>
         </div>
         <div class="col-span-2">
           <input type="number" placeholder="Cant." value="${it.quantity}"
@@ -989,7 +1039,7 @@
           <input type="number" placeholder="P.U." value="${it.unit_price}"
             oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||''" />
         </div>
-        <div class="col-span-2">
+        <div class="col-span-1">
           <input type="number" placeholder="Total" value="${it.total}"
             oninput="invoiceItems[${i}].total=parseFloat(this.value)||''" />
         </div>
@@ -1001,7 +1051,7 @@
   }
 
   function addInvoiceItem() {
-    invoiceItems.push({ description:'', quantity:'', unit_price:'', total:'' });
+    invoiceItems.push({ description:'', quantity:'', unit:'', unit_price:'', total:'' });
     renderInvoiceItems();
   }
 
@@ -1022,6 +1072,7 @@
       items: invoiceItems.filter(it => it.description || it.total).map(it => ({
         description: it.description || null,
         quantity: parseFloat(it.quantity) || null,
+        unit: it.unit || null,
         unit_price: parseFloat(it.unit_price) || null,
         total: parseFloat(it.total) || null,
       })),
@@ -1040,6 +1091,109 @@
     } catch(e) {
       toast('Error guardando factura: ' + e.message, true);
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // PRICE COMPARISONS
+  // ─────────────────────────────────────────────
+  function renderPriceComparisons(comparisons) {
+    const el = document.getElementById('price-comparisons-container');
+    if (!el) return;
+    if (!comparisons || !comparisons.length) { el.innerHTML = ''; return; }
+
+    const alerts = comparisons.filter(c => !c.is_new && c.percent_diff !== null);
+    if (!alerts.length) { el.innerHTML = ''; return; }
+
+    el.innerHTML = `
+      <div class="mt-4 space-y-2">
+        <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">⚠️ Comparación de Precios Históricos</p>
+        ${alerts.map(c => {
+          const diff = c.percent_diff;
+          const isExpensive = diff > 5;
+          const isCheap = diff < -5;
+          const color = isExpensive ? 'border-red-500/40 bg-red-900/20' : isCheap ? 'border-green-500/40 bg-green-900/20' : 'border-slate-600/40 bg-slate-800/20';
+          const icon = isExpensive ? '🔴' : isCheap ? '🟢' : '🟡';
+          const sign = diff > 0 ? '+' : '';
+          const minInfo = c.min_supplier ? ` · Más barato en <b>${c.min_supplier}</b>: $${fmtNum(c.min_historical_price)}/${c.unit||'u'}` : '';
+          return `<div class="rounded-lg border p-3 text-sm ${color}">
+            ${icon} <b>${c.item_description}</b>: precio actual $${fmtNum(c.current_unit_price)}/${c.unit||'u'} —
+            ${sign}${diff}% vs promedio histórico ($${fmtNum(c.avg_historical_price)})${minInfo}
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  let allRankings = [];
+
+  async function loadPriceRankings() {
+    const container = document.getElementById('prices-table-container');
+    container.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
+    try {
+      const data = await api('/api/price-history/rankings');
+      allRankings = data.rankings || [];
+      renderRankingsTable(allRankings);
+    } catch(e) {
+      container.innerHTML = `<p class="text-red-400 text-sm">Error: ${e.message}</p>`;
+    }
+  }
+
+  function filterPriceRankings(q) {
+    const filtered = q
+      ? allRankings.filter(r => r.item_description.toLowerCase().includes(q.toLowerCase()) ||
+          (r.supplier||'').toLowerCase().includes(q.toLowerCase()))
+      : allRankings;
+    renderRankingsTable(filtered);
+  }
+
+  function renderRankingsTable(rows) {
+    const container = document.getElementById('prices-table-container');
+    if (!rows.length) {
+      container.innerHTML = '<p class="text-slate-500 text-sm">No hay historial de precios aún. Guarda facturas con ítems para empezar a construir el comparativo.</p>';
+      return;
+    }
+
+    // Group by item_description
+    const grouped = {};
+    rows.forEach(r => {
+      if (!grouped[r.item_description]) grouped[r.item_description] = [];
+      grouped[r.item_description].push(r);
+    });
+
+    const html = Object.entries(grouped).map(([item, suppliers]) => {
+      const minPrice = Math.min(...suppliers.map(s => s.min_price));
+      return `
+        <div class="card rounded-2xl p-5 mb-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-white">${item}</h3>
+            <span class="text-xs text-slate-400">${suppliers[0].unit || '—'}</span>
+          </div>
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-400 text-xs border-b border-slate-700">
+                <th class="text-left pb-2">Proveedor</th>
+                <th class="text-right pb-2">Precio mín.</th>
+                <th class="text-right pb-2">Precio prom.</th>
+                <th class="text-right pb-2">Compras</th>
+                <th class="text-right pb-2">Última vez</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${suppliers.map(s => {
+                const isBest = s.min_price === minPrice;
+                return `<tr class="border-b border-slate-800/50 ${isBest ? 'text-green-400' : 'text-slate-300'}">
+                  <td class="py-2">${isBest ? '🏆 ' : ''}${s.supplier}</td>
+                  <td class="text-right py-2">$${fmtNum(s.min_price)}</td>
+                  <td class="text-right py-2">$${fmtNum(s.avg_price)}</td>
+                  <td class="text-right py-2">${s.times_bought}</td>
+                  <td class="text-right py-2">${new Date(s.last_date).toLocaleDateString('es-CO')}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = html;
   }
 
   // ─────────────────────────────────────────────
@@ -1082,6 +1236,58 @@
       closeModal('modal-delete');
       pendingDeleteFn = null;
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // CAMERA
+  // ─────────────────────────────────────────────
+  let cameraStream = null;
+  let cameraTarget = null; // 'invoice' | 'project'
+
+  async function openCamera(target) {
+    cameraTarget = target;
+    const modal = document.getElementById('modal-camera');
+    modal.classList.remove('hidden');
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      document.getElementById('camera-video').srcObject = cameraStream;
+    } catch(e) {
+      closeCamera();
+      // Fallback: open file input
+      if (target === 'invoice') document.getElementById('invoice-photo-input').click();
+      else document.getElementById('proj-photo').click();
+      toast('Cámara no disponible, selecciona un archivo', true);
+    }
+  }
+
+  function closeCamera() {
+    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+    document.getElementById('modal-camera').classList.add('hidden');
+  }
+
+  function capturePhoto() {
+    const video = document.getElementById('camera-video');
+    const canvas = document.getElementById('camera-canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      const file = new File([blob], 'foto_camara.jpg', { type: 'image/jpeg' });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      if (cameraTarget === 'invoice') {
+        const input = document.getElementById('invoice-photo-input');
+        input.files = dt.files;
+        handleInvoicePhoto({ target: input });
+      } else {
+        const input = document.getElementById('proj-photo');
+        input.files = dt.files;
+      }
+      closeCamera();
+    }, 'image/jpeg', 0.92);
   }
 
   // ─────────────────────────────────────────────

@@ -1,16 +1,93 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+import unicodedata
+import re
 
 from database import get_db
-from models import Project, Invoice
-from schemas import InvoiceCreate, InvoiceOut, ScanResult
+from models import Project, Invoice, PriceHistory
+from schemas import InvoiceCreate, InvoiceOut, ScanResult, PriceComparison
 from services.cloudinary_service import upload_image
 from services.ai_service import extract_invoice_data
 
 router = APIRouter(tags=["invoices"])
+
+
+def normalize_description(text: str) -> str:
+    """Lowercase, remove accents, strip extra spaces for fuzzy matching."""
+    if not text:
+        return ""
+    text = text.lower().strip()
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = None) -> List[PriceComparison]:
+    comparisons = []
+    for item in items:
+        desc = item.get("description") or ""
+        unit_price = item.get("unit_price")
+        unit = item.get("unit")
+        if not desc or unit_price is None:
+            continue
+
+        norm = normalize_description(desc)
+
+        result = await db.execute(
+            select(
+                PriceHistory.supplier,
+                func.avg(PriceHistory.unit_price).label("avg_price"),
+                func.min(PriceHistory.unit_price).label("min_price"),
+            )
+            .where(PriceHistory.item_description_normalized == norm)
+            .where(PriceHistory.unit_price.isnot(None))
+            .group_by(PriceHistory.supplier)
+            .order_by(func.min(PriceHistory.unit_price))
+        )
+        rows = result.all()
+
+        if not rows:
+            comparisons.append(PriceComparison(
+                item_description=desc,
+                unit=unit,
+                current_unit_price=unit_price,
+                avg_historical_price=None,
+                min_historical_price=None,
+                min_supplier=None,
+                percent_diff=None,
+                is_new=True,
+            ))
+            continue
+
+        all_prices_result = await db.execute(
+            select(func.avg(PriceHistory.unit_price), func.min(PriceHistory.unit_price))
+            .where(PriceHistory.item_description_normalized == norm)
+            .where(PriceHistory.unit_price.isnot(None))
+        )
+        avg_price, min_price = all_prices_result.one()
+        min_supplier = rows[0].supplier if rows else None
+
+        percent_diff = None
+        if avg_price:
+            percent_diff = round(((unit_price - avg_price) / avg_price) * 100, 1)
+
+        comparisons.append(PriceComparison(
+            item_description=desc,
+            unit=unit,
+            current_unit_price=unit_price,
+            avg_historical_price=round(avg_price, 2) if avg_price else None,
+            min_historical_price=round(min_price, 2) if min_price else None,
+            min_supplier=min_supplier,
+            percent_diff=percent_diff,
+            is_new=False,
+        ))
+
+    return comparisons
 
 
 @router.get("/api/projects/{project_id}/invoices", response_model=List[InvoiceOut])
@@ -29,8 +106,7 @@ async def scan_invoice(
     photo: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload invoice photo, run Claude OCR, return extracted data — does NOT save to DB."""
-    # Verify project exists
+    """Upload invoice photo, run Claude OCR, return extracted data with price comparisons."""
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
@@ -49,6 +125,9 @@ async def scan_invoice(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al procesar la imagen: {str(e)}")
 
+    items = extracted.get("items", []) or []
+    comparisons = await get_price_comparisons(db, items, extracted.get("supplier"))
+
     return ScanResult(
         photo_url=photo_url,
         supplier=extracted.get("supplier"),
@@ -56,9 +135,10 @@ async def scan_invoice(
         invoice_date=extracted.get("invoice_date"),
         total_amount=extracted.get("total_amount"),
         currency=extracted.get("currency", "COP"),
-        items=extracted.get("items", []),
+        items=items,
         notes=extracted.get("notes"),
         raw_text=extracted.get("raw_text"),
+        comparisons=comparisons,
     )
 
 
@@ -68,7 +148,7 @@ async def save_invoice(
     invoice_data: InvoiceCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Save a confirmed invoice to the database."""
+    """Save a confirmed invoice to the database and record price history."""
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
@@ -91,6 +171,25 @@ async def save_invoice(
         confirmed=invoice_data.confirmed if invoice_data.confirmed is not None else True,
     )
     db.add(invoice)
+    await db.flush()  # get invoice.id before committing
+
+    # Save price history for each item with a unit_price
+    if invoice_data.items and invoice.confirmed:
+        for item in invoice_data.items:
+            if item.description and item.unit_price is not None:
+                ph = PriceHistory(
+                    invoice_id=invoice.id,
+                    project_id=project_id,
+                    supplier=invoice_data.supplier,
+                    item_description=item.description,
+                    item_description_normalized=normalize_description(item.description),
+                    unit=item.unit,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    total=item.total,
+                )
+                db.add(ph)
+
     await db.commit()
     await db.refresh(invoice)
     return invoice
