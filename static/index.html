@@ -343,7 +343,7 @@
 
       <!-- Step 3: Review extracted data -->
       <div id="invoice-step-review" class="hidden">
-        <div class="bg-green-900/30 border border-green-700/40 rounded-xl p-3 mb-5 flex items-center gap-2">
+        <div id="invoice-scan-banner" class="bg-green-900/30 border border-green-700/40 rounded-xl p-3 mb-5 flex items-center gap-2">
           <span class="text-green-400 text-lg">✓</span>
           <p class="text-green-300 text-sm">Datos extraídos por Claude AI — revisa y ajusta si es necesario</p>
         </div>
@@ -992,9 +992,29 @@
     document.getElementById('inv-number').value = data.invoice_number || '';
     document.getElementById('inv-date').value = data.invoice_date || '';
     document.getElementById('inv-total').value = data.total_amount || '';
+    const totalInput = document.getElementById('inv-total');
+    if (!data.total_amount) {
+      totalInput.style.borderColor = 'rgba(249,115,22,0.7)';
+      totalInput.style.background = '#1a0e00';
+      totalInput.placeholder = 'Ingresa el total ✏️';
+    } else {
+      totalInput.style.borderColor = '';
+      totalInput.style.background = '';
+    }
     document.getElementById('inv-notes').value = data.notes || '';
     const cur = document.getElementById('inv-currency');
     if (data.currency) cur.value = data.currency;
+
+    // Banner dinámico según si hay precios o no
+    const noPrice = !data.total_amount && !(data.items || []).some(it => it.unit_price);
+    const banner = document.getElementById('invoice-scan-banner');
+    if (noPrice) {
+      banner.className = 'bg-yellow-900/30 border border-yellow-600/40 rounded-xl p-3 mb-5 flex items-center gap-2';
+      banner.innerHTML = '<span class="text-yellow-400 text-lg">✏️</span><p class="text-yellow-200 text-sm">No se encontraron precios. <b>Completa los campos manualmente</b> — puedes editar cualquier valor antes de guardar.</p>';
+    } else {
+      banner.className = 'bg-green-900/30 border border-green-700/40 rounded-xl p-3 mb-5 flex items-center gap-2';
+      banner.innerHTML = '<span class="text-green-400 text-lg">✓</span><p class="text-green-300 text-sm">Datos extraídos por Claude AI — revisa y ajusta si es necesario</p>';
+    }
 
     const preview = document.getElementById('inv-photo-preview');
     if (data.photo_url) {
@@ -1036,8 +1056,9 @@
             oninput="invoiceItems[${i}].quantity=parseFloat(this.value)||''" />
         </div>
         <div class="col-span-2">
-          <input type="number" placeholder="P.U." value="${it.unit_price}"
-            oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||''" />
+          <input type="number" placeholder="P.U. ✏️" value="${it.unit_price}"
+            style="${!it.unit_price ? 'border-color:rgba(249,115,22,0.7);background:#1a0e00' : ''}"
+            oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||''; this.style.borderColor=''; this.style.background='';" />
         </div>
         <div class="col-span-1">
           <input type="number" placeholder="Total" value="${it.total}"
