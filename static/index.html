@@ -267,7 +267,13 @@
           </div>
           <div>
             <label>Imagen del Proyecto</label>
-            <input type="file" id="proj-photo" accept="image/*" style="padding:6px" />
+            <div class="flex gap-2 items-center">
+              <input type="file" id="proj-photo" accept="image/*" style="padding:6px;flex:1" />
+              <input type="file" id="proj-photo-camera" accept="image/*" capture="environment" class="hidden" onchange="document.getElementById('proj-photo').files = this.files" />
+              <button type="button" onclick="document.getElementById('proj-photo-camera').click()"
+                style="background:#0d0d1a;border:1px solid rgba(249,115,22,0.3);color:#94a3b8;border-radius:6px;padding:8px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0"
+                title="Tomar foto con cámara">📷 Cámara</button>
+            </div>
           </div>
         </div>
         <div class="flex gap-3 mt-6">
@@ -291,6 +297,16 @@
           <p class="text-slate-300 font-medium">Arrastra la foto de la factura aquí</p>
           <p class="text-slate-500 text-sm mt-1">o haz clic para seleccionar</p>
           <input type="file" id="invoice-photo-input" accept="image/*" class="hidden" onchange="handleInvoicePhoto(event)" />
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button type="button" class="btn-ghost flex-1 text-sm" onclick="document.getElementById('invoice-photo-input').click()">
+            🖼 Elegir archivo
+          </button>
+          <input type="file" id="invoice-photo-camera" accept="image/*" capture="environment" class="hidden"
+            onchange="handleInvoicePhoto(event); document.getElementById('invoice-photo-input').files = this.files" />
+          <button type="button" class="btn-ghost flex-1 text-sm" onclick="document.getElementById('invoice-photo-camera').click()">
+            📷 Tomar foto
+          </button>
         </div>
         <div id="invoice-upload-preview" class="hidden mt-4 text-center">
           <img id="invoice-preview-img" class="max-h-48 mx-auto rounded-lg object-contain" />
