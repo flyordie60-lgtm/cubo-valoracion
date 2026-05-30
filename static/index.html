@@ -1175,6 +1175,46 @@
     renderPriceComparisons(data.comparisons || []);
   }
 
+  function calcItemTotal(i) {
+    const it = invoiceItems[i];
+    const q = parseFloat(it.quantity) || 0;
+    const p = parseFloat(it.unit_price) || 0;
+    if (q && p) {
+      invoiceItems[i].total = q * p;
+      // update total input in DOM
+      const row = document.querySelector(`[data-item="${i}"]`);
+      if (row) row.querySelector('.item-total-input').value = invoiceItems[i].total;
+      // update $/m² display
+      updateM2Display(i);
+      // update invoice total
+      recalcInvoiceTotal();
+    }
+  }
+
+  function updateM2Display(i) {
+    const it = invoiceItems[i];
+    const row = document.querySelector(`[data-item="${i}"]`);
+    if (!row) return;
+    const m2el = row.querySelector('.item-m2');
+    if (!m2el) return;
+    const q = parseFloat(it.quantity) || 0;
+    const p = parseFloat(it.unit_price) || 0;
+    const total = parseFloat(it.total) || (q * p);
+    // Price per m²: if unit is m², P.U. already is $/m²; otherwise total/quantity gives $/unit, not $/m²
+    const pricePerM2 = it.unit === 'm²' ? p : (q > 0 ? total / q : null);
+    m2el.textContent = pricePerM2 ? '$' + fmtNum(pricePerM2) + '/m²' : '—';
+  }
+
+  function recalcInvoiceTotal() {
+    const total = invoiceItems.reduce((sum, it) => sum + (parseFloat(it.total) || 0), 0);
+    if (total > 0) {
+      const el = document.getElementById('inv-total');
+      el.value = total;
+      el.style.borderColor = '';
+      el.style.background = '';
+    }
+  }
+
   function renderInvoiceItems() {
     const c = document.getElementById('invoice-items-container');
     if (!invoiceItems.length) {
@@ -1182,35 +1222,51 @@
       return;
     }
     const unitOptions = ['','m²','m','m³','kg','lt','unidad','caja','rollo','saco','galón','bolsa','par','juego','ml'];
-    c.innerHTML = invoiceItems.map((it, i) => `
-      <div class="grid grid-cols-12 gap-2 items-center text-sm" data-item="${i}">
-        <div class="col-span-4">
-          <input type="text" placeholder="Descripción" value="${it.description}"
-            oninput="invoiceItems[${i}].description=this.value" />
-        </div>
-        <div class="col-span-2">
-          <select onchange="invoiceItems[${i}].unit=this.value">
-            ${unitOptions.map(u => `<option value="${u}" ${it.unit===u?'selected':''}>${u||'Unidad'}</option>`).join('')}
-          </select>
-        </div>
-        <div class="col-span-2">
-          <input type="number" placeholder="Cant." value="${it.quantity}"
-            oninput="invoiceItems[${i}].quantity=parseFloat(this.value)||''" />
-        </div>
-        <div class="col-span-2">
-          <input type="number" placeholder="P.U. ✏️" value="${it.unit_price}"
-            style="${!it.unit_price ? 'border-color:rgba(249,115,22,0.7);background:#1a0e00' : ''}"
-            oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||''; this.style.borderColor=''; this.style.background='';" />
-        </div>
-        <div class="col-span-1">
-          <input type="number" placeholder="Total" value="${it.total}"
-            oninput="invoiceItems[${i}].total=parseFloat(this.value)||''" />
-        </div>
-        <div class="col-span-1 text-center">
-          <button type="button" class="text-red-400 hover:text-red-300 text-lg leading-none"
-            onclick="removeInvoiceItem(${i})">×</button>
-        </div>
-      </div>`).join('');
+    c.innerHTML = `
+      <div class="grid grid-cols-12 gap-2 text-xs text-slate-400 font-medium mb-1 px-1">
+        <div class="col-span-3">Descripción</div>
+        <div class="col-span-2">Unidad</div>
+        <div class="col-span-1">Cant.</div>
+        <div class="col-span-2">P. Unitario</div>
+        <div class="col-span-2">Total</div>
+        <div class="col-span-1 text-brand">$/m²</div>
+        <div class="col-span-1"></div>
+      </div>
+      ${invoiceItems.map((it, i) => {
+        const q = parseFloat(it.quantity) || 0;
+        const p = parseFloat(it.unit_price) || 0;
+        const total = parseFloat(it.total) || (q && p ? q * p : '');
+        const pricePerM2 = it.unit === 'm²' ? p : (q > 0 && total ? total / q : null);
+        return `
+        <div class="grid grid-cols-12 gap-2 items-center text-sm" data-item="${i}">
+          <div class="col-span-3">
+            <input type="text" placeholder="Descripción" value="${it.description}"
+              oninput="invoiceItems[${i}].description=this.value" />
+          </div>
+          <div class="col-span-2">
+            <select onchange="invoiceItems[${i}].unit=this.value; updateM2Display(${i})">
+              ${unitOptions.map(u => `<option value="${u}" ${it.unit===u?'selected':''}>${u||'Unidad'}</option>`).join('')}
+            </select>
+          </div>
+          <div class="col-span-1">
+            <input type="number" placeholder="0" value="${it.quantity}"
+              oninput="invoiceItems[${i}].quantity=parseFloat(this.value)||''; calcItemTotal(${i})" />
+          </div>
+          <div class="col-span-2">
+            <input type="number" placeholder="0" value="${it.unit_price}"
+              style="${!it.unit_price ? 'border-color:rgba(249,115,22,0.7);background:#1a0e00' : ''}"
+              oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||''; this.style.borderColor=''; this.style.background=''; calcItemTotal(${i})" />
+          </div>
+          <div class="col-span-2">
+            <input type="number" placeholder="0" value="${total || ''}" class="item-total-input"
+              oninput="invoiceItems[${i}].total=parseFloat(this.value)||''; updateM2Display(${i}); recalcInvoiceTotal()" />
+          </div>
+          <div class="col-span-1 text-brand text-xs item-m2">${pricePerM2 ? '$'+fmtNum(pricePerM2)+'/m²' : '—'}</div>
+          <div class="col-span-1 text-center">
+            <button type="button" class="text-red-400 hover:text-red-300 text-lg leading-none"
+              onclick="removeInvoiceItem(${i})">×</button>
+          </div>
+        </div>`}).join('')}`;
   }
 
   function addInvoiceItem() {
