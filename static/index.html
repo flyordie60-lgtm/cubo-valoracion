@@ -577,6 +577,51 @@
     </div>
   </div>
 
+  <!-- Quick Create Material Modal -->
+  <div id="modal-quick-material" class="modal-overlay hidden" style="z-index:70">
+    <div class="modal-box" style="max-width:420px">
+      <h2 class="text-lg font-bold text-white mb-4">➕ Nuevo Material</h2>
+      <div class="space-y-3">
+        <div>
+          <label>Nombre del material</label>
+          <input type="text" id="qm-name" placeholder="Ej: Vinilo adhesivo mate" />
+        </div>
+        <div>
+          <label>Categoría</label>
+          <select id="qm-category">
+            <option value="">Selecciona una categoría...</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label>Unidad por defecto</label>
+            <select id="qm-unit">
+              <option value="">— sin unidad —</option>
+              <option value="m²">m²</option>
+              <option value="m">m</option>
+              <option value="m³">m³</option>
+              <option value="lt">lt</option>
+              <option value="kg">kg</option>
+              <option value="unidad">unidad</option>
+              <option value="caja">caja</option>
+              <option value="rollo">rollo</option>
+              <option value="saco">saco</option>
+              <option value="galón">galón</option>
+            </select>
+          </div>
+          <div>
+            <label>Descripción (opcional)</label>
+            <input type="text" id="qm-description" placeholder="Detalle adicional" />
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button class="btn-primary flex-1" onclick="saveQuickMaterial()">Crear y usar</button>
+        <button class="btn-ghost" onclick="closeModal('modal-quick-material')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Camera Modal -->
   <div id="modal-camera" class="modal-overlay hidden" style="z-index:60">
     <div class="modal-box" style="max-width:500px">
@@ -1803,17 +1848,27 @@
   async function performCatalogSearch(idx, q) {
     try {
       const results = await api(`/api/catalog/search?q=${encodeURIComponent(q)}`);
-      showCatalogDropdown(idx, results);
+      showCatalogDropdown(idx, results, q);
     } catch(e) {
       hideCatalogDropdown(idx);
     }
   }
 
-  function showCatalogDropdown(idx, results) {
+  function showCatalogDropdown(idx, results, searchTerm) {
     const dd = document.getElementById(`item-desc-dropdown-${idx}`);
     if (!dd) return;
+
+    const addNewRow = `
+      <div onclick="openCreateMaterialQuick(${idx}, '${(searchTerm||'').replace(/'/g,"\\'")}')"
+           style="padding:8px 12px;cursor:pointer;font-size:13px;color:#f97316;border-top:1px solid rgba(249,115,22,0.2);"
+           onmouseover="this.style.background='rgba(249,115,22,0.1)'"
+           onmouseout="this.style.background=''">
+        ➕ Crear material "<b>${escHtmlInv(searchTerm||'')}</b>" en catálogo
+      </div>`;
+
     if (!results || !results.length) {
-      dd.style.display = 'none';
+      dd.innerHTML = `<div style="padding:8px 12px;font-size:13px;color:#64748b;">Sin resultados</div>` + addNewRow;
+      dd.style.display = 'block';
       return;
     }
     dd.innerHTML = results.map(m => `
@@ -1825,7 +1880,7 @@
         <span style="color:#e2e8f0;margin-left:6px;">${escHtmlInv(m.name)}</span>
         ${m.default_unit ? `<span style="color:#f97316;font-size:11px;margin-left:6px;">(${escHtmlInv(m.default_unit)})</span>` : ''}
       </div>
-    `).join('');
+    `).join('') + addNewRow;
     dd.style.display = 'block';
   }
 
@@ -1843,6 +1898,57 @@
     if (input) input.value = name;
     // Update unit select without full re-render
     renderInvoiceItems();
+  }
+
+  let _quickMaterialItemIdx = null;
+
+  async function openCreateMaterialQuick(idx, name) {
+    _quickMaterialItemIdx = idx;
+    hideCatalogDropdown(idx);
+    // Load categories into select
+    const sel = document.getElementById('qm-category');
+    sel.innerHTML = '<option value="">Selecciona una categoría...</option>';
+    try {
+      const cats = await api('/api/catalog');
+      cats.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.id; o.textContent = c.name;
+        sel.appendChild(o);
+      });
+    } catch(e) {}
+    document.getElementById('qm-name').value = name || '';
+    document.getElementById('qm-unit').value = '';
+    document.getElementById('qm-description').value = '';
+    document.getElementById('modal-quick-material').classList.remove('hidden');
+    document.getElementById('qm-name').focus();
+  }
+
+  async function saveQuickMaterial() {
+    const name = document.getElementById('qm-name').value.trim();
+    const category_id = parseInt(document.getElementById('qm-category').value);
+    const unit = document.getElementById('qm-unit').value;
+    const description = document.getElementById('qm-description').value.trim();
+    if (!name || !category_id) { toast('Completa nombre y categoría', true); return; }
+    try {
+      const mat = await api('/api/catalog/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, category_id, default_unit: unit || null, description: description || null })
+      });
+      // Use in current item
+      const idx = _quickMaterialItemIdx;
+      if (idx !== null) {
+        invoiceItems[idx].description = mat.name;
+        invoiceItems[idx].material_id = mat.id;
+        if (mat.default_unit) invoiceItems[idx].unit = mat.default_unit;
+        renderInvoiceItems();
+      }
+      closeModal('modal-quick-material');
+      toast(`Material "${mat.name}" creado ✓`);
+      _quickMaterialItemIdx = null;
+    } catch(e) {
+      toast('Error creando material: ' + e.message, true);
+    }
   }
 
   // Close dropdowns on outside click
