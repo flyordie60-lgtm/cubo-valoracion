@@ -63,6 +63,13 @@ async def init_db():
             ))
         except Exception:
             pass
+        # Add brand to price_history
+        try:
+            await conn.execute(__import__('sqlalchemy').text(
+                "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS brand VARCHAR(255)"
+            ))
+        except Exception:
+            pass
         # Seed example categories/materials if none exist
         from sqlalchemy import text as _text
         result = await conn.execute(_text("SELECT COUNT(*) FROM categories"))

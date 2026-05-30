@@ -129,6 +129,7 @@ class InvoiceItem(BaseModel):
     unit_price: Optional[float] = None
     total: Optional[float] = None
     material_id: Optional[int] = None
+    brand: Optional[str] = None
 
 
 class PriceComparison(BaseModel):
@@ -171,6 +172,7 @@ class SupplierRankingItem(BaseModel):
     last_date: datetime
     avg_price_m2: Optional[float] = None
     min_price_m2: Optional[float] = None
+    brand: Optional[str] = None
 
 
 class RankingOut(BaseModel):

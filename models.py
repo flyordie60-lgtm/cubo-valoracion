@@ -68,6 +68,7 @@ class PriceHistory(Base):
     area_m2 = Column(Float, nullable=True)  # área del proyecto en m²
     price_per_m2 = Column(Float, nullable=True)  # precio/m² = total_item / area_m2
     material_id = Column(Integer, ForeignKey("materials.id", ondelete="SET NULL"), nullable=True)
+    brand = Column(String(255), nullable=True)
 
 
 class Project(Base):

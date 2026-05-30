@@ -1378,14 +1378,15 @@
     }
     const unitOptions = ['','m²','m','m³','kg','lt','unidad','caja','rollo','saco','galón','bolsa','par','juego','ml'];
     c.innerHTML = `
-      <div class="grid grid-cols-12 gap-2 text-xs text-slate-400 font-medium mb-1 px-1">
-        <div class="col-span-3">Descripción</div>
-        <div class="col-span-2">Unidad</div>
-        <div class="col-span-1">Cant.</div>
-        <div class="col-span-2">P. Unitario</div>
-        <div class="col-span-2">Total</div>
-        <div class="col-span-1 text-brand">$/m²</div>
-        <div class="col-span-1"></div>
+      <div class="gap-2 text-xs text-slate-400 font-medium mb-1 px-1" style="display:grid;grid-template-columns:3fr 2fr 1fr 1fr 2fr 2fr 1fr 1fr">
+        <div>Descripción</div>
+        <div>Marca</div>
+        <div>Unidad</div>
+        <div>Cant.</div>
+        <div>P. Unitario</div>
+        <div>Total</div>
+        <div class="text-brand">$/m²</div>
+        <div></div>
       </div>
       ${invoiceItems.map((it, i) => {
         const q = parseFloat(it.quantity) || 0;
@@ -1395,34 +1396,38 @@
         const area = projectAreaM2;
         const m2text = itemTotal && area > 0 ? '$' + fmtNum(itemTotal / area) + '/m²' : (area === 0 ? 'Sin área' : '—');
         return `
-        <div class="grid grid-cols-12 gap-2 items-center text-sm" data-item="${i}">
-          <div class="col-span-3" style="position:relative">
+        <div class="gap-2 items-center text-sm" style="display:grid;grid-template-columns:3fr 2fr 1fr 1fr 2fr 2fr 1fr 1fr" data-item="${i}">
+          <div style="position:relative">
             <input type="text" placeholder="Descripción" value="${escHtmlInv(it.description)}"
               id="item-desc-input-${i}"
               oninput="invoiceItems[${i}].description=this.value; debounceCatalogSearch(${i}, this.value)"
               autocomplete="off" />
             <div id="item-desc-dropdown-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:#0d0d1a;border:1px solid rgba(249,115,22,0.4);border-radius:8px;max-height:180px;overflow-y:auto;margin-top:2px;"></div>
           </div>
-          <div class="col-span-2">
+          <div>
+            <input type="text" placeholder="Marca (ej: 3M)" value="${escHtmlInv(it.brand||'')}"
+              oninput="invoiceItems[${i}].brand=this.value" style="font-size:12px" />
+          </div>
+          <div>
             <select onchange="invoiceItems[${i}].unit=this.value; updateM2Display(${i})">
               ${unitOptions.map(u => `<option value="${u}" ${it.unit===u?'selected':''}>${u||'Unidad'}</option>`).join('')}
             </select>
           </div>
-          <div class="col-span-1">
+          <div>
             <input type="number" placeholder="0" value="${it.quantity}"
               oninput="invoiceItems[${i}].quantity=parseFloat(this.value)||0; calcItemTotal(${i})" />
           </div>
-          <div class="col-span-2">
+          <div>
             <input type="number" placeholder="0" value="${it.unit_price}"
               style="${!it.unit_price ? 'border-color:rgba(249,115,22,0.7);background:#1a0e00' : ''}"
               oninput="invoiceItems[${i}].unit_price=parseFloat(this.value)||0; this.style.borderColor=''; this.style.background=''; calcItemTotal(${i})" />
           </div>
-          <div class="col-span-2">
+          <div>
             <input type="number" placeholder="0" value="${itemTotal || ''}" class="item-total-input"
               oninput="invoiceItems[${i}].total=parseFloat(this.value)||0; updateM2Display(${i}); recalcInvoiceTotal()" />
           </div>
-          <div class="col-span-1 text-brand text-xs item-m2">${m2text}</div>
-          <div class="col-span-1 text-center">
+          <div class="text-brand text-xs item-m2">${m2text}</div>
+          <div class="text-center">
             <button type="button" class="text-red-400 hover:text-red-300 text-lg leading-none"
               onclick="removeInvoiceItem(${i})">×</button>
           </div>
@@ -1430,7 +1435,7 @@
   }
 
   function addInvoiceItem() {
-    invoiceItems.push({ description:'', quantity:'', unit:'', unit_price:'', total:'', rendimiento_m2:'' });
+    invoiceItems.push({ description:'', quantity:'', unit:'', unit_price:'', total:'', rendimiento_m2:'', brand:'' });
     renderInvoiceItems();
   }
 
@@ -1455,6 +1460,7 @@
         unit_price: parseFloat(it.unit_price) || null,
         total: parseFloat(it.total) || null,
         material_id: it.material_id || null,
+        brand: it.brand || null,
       })),
       confirmed: true,
       uploaded_by: currentUser ? currentUser.username : null,
@@ -1509,8 +1515,9 @@
           const m2Info = c.current_price_m2 != null
             ? `<br><span class="text-slate-400 text-xs">$/m²: $${fmtNum(c.current_price_m2)}/m² vs histórico ${c.avg_historical_price_m2 != null ? '$'+fmtNum(c.avg_historical_price_m2)+'/m²' : '—'}${c.min_historical_price_m2 != null ? ' (mín $'+fmtNum(c.min_historical_price_m2)+'/m²)' : ''}</span>`
             : '';
+          const brandInfo = c.brand ? ` · Marca: <b>${c.brand}</b>` : '';
           return `<div class="rounded-lg border p-3 text-sm ${color}">
-            ${icon} <b>${c.item_description}</b>: precio actual $${fmtNum(c.current_unit_price)}/${c.unit||'u'} —
+            ${icon} <b>${c.item_description}</b>${brandInfo}: precio actual $${fmtNum(c.current_unit_price)}/${c.unit||'u'} —
             ${sign}${diff}% vs promedio histórico ($${fmtNum(c.avg_historical_price)})${minInfo}${m2Info}
           </div>`;
         }).join('')}
@@ -1566,6 +1573,7 @@
               ${(() => { const hasM2 = suppliers.some(s => s.min_price_m2 != null); return `
               <tr class="text-slate-400 text-xs border-b border-slate-700">
                 <th class="text-left pb-2">Proveedor</th>
+                <th class="text-left pb-2">Marca</th>
                 <th class="text-right pb-2">P. mínimo</th>
                 <th class="text-right pb-2">P. promedio</th>
                 ${hasM2 ? '<th class="text-right pb-2">$/m² mín</th><th class="text-right pb-2">$/m² prom</th>' : ''}
@@ -1578,6 +1586,7 @@
                 const isBest = s.min_price === minPrice;
                 return `<tr class="border-b border-slate-800/50 ${isBest ? 'text-green-400' : 'text-slate-300'}">
                   <td class="py-2">${isBest ? '🏆 ' : ''}${s.supplier}</td>
+                  <td class="py-2">${s.brand || '—'}</td>
                   <td class="text-right py-2">$${fmtNum(s.min_price)}</td>
                   <td class="text-right py-2">$${fmtNum(s.avg_price)}</td>
                   ${hasM2 ? `<td class="text-right py-2">${s.min_price_m2 != null ? '$'+fmtNum(s.min_price_m2)+'/m²' : '—'}</td><td class="text-right py-2">${s.avg_price_m2 != null ? '$'+fmtNum(s.avg_price_m2)+'/m²' : '—'}</td>` : ''}

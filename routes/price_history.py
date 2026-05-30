@@ -21,6 +21,7 @@ async def get_rankings(
             PriceHistory.item_description,
             PriceHistory.unit,
             PriceHistory.supplier,
+            PriceHistory.brand,
             func.avg(PriceHistory.unit_price).label("avg_price"),
             func.min(PriceHistory.unit_price).label("min_price"),
             func.avg(PriceHistory.price_per_m2).label("avg_price_m2"),
@@ -30,7 +31,7 @@ async def get_rankings(
         )
         .where(PriceHistory.unit_price.isnot(None))
         .where(PriceHistory.supplier.isnot(None))
-        .group_by(PriceHistory.item_description, PriceHistory.unit, PriceHistory.supplier)
+        .group_by(PriceHistory.item_description, PriceHistory.unit, PriceHistory.supplier, PriceHistory.brand)
         .order_by(PriceHistory.item_description, func.avg(PriceHistory.unit_price))
     )
 
@@ -45,6 +46,7 @@ async def get_rankings(
             item_description=row.item_description,
             unit=row.unit,
             supplier=row.supplier,
+            brand=row.brand,
             avg_price=round(row.avg_price, 2),
             min_price=round(row.min_price, 2),
             avg_price_m2=round(row.avg_price_m2, 2) if row.avg_price_m2 else None,

@@ -217,6 +217,7 @@ async def save_invoice(
                     area_m2=invoice_data.area_m2,
                     price_per_m2=price_per_m2_val,
                     material_id=item.material_id,
+                    brand=item.brand,
                 )
                 db.add(ph)
 
