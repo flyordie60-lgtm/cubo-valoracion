@@ -461,11 +461,6 @@
             </div>
           </div>
           <div>
-            <label>Notas</label>
-            <textarea id="inv-notes" rows="2" placeholder="Observaciones..."></textarea>
-          </div>
-
-          <div>
             <div class="flex items-center justify-between mb-2">
               <label class="mb-0">Ítems / Líneas</label>
               <button type="button" class="text-brand text-xs hover:underline" onclick="addInvoiceItem()">+ Agregar ítem</button>
@@ -1349,10 +1344,10 @@
     if (!row) return;
     const m2el = row.querySelector('.item-m2');
     if (!m2el) return;
-    const itemTotal = parseFloat(it.total) || 0;
+    const unitPrice = parseFloat(it.unit_price) || 0;
     const area = projectAreaM2;
-    if (itemTotal > 0 && area > 0) {
-      m2el.textContent = '$' + fmtNum(itemTotal / area) + '/m²';
+    if (unitPrice > 0 && area > 0) {
+      m2el.textContent = '$' + fmtNum(unitPrice / area) + '/m²';
     } else if (area === 0) {
       m2el.textContent = 'Sin área';
     } else {
@@ -1394,7 +1389,7 @@
         const total = parseFloat(it.total) || (q && p ? q * p : '');
         const itemTotal = parseFloat(it.total) || (q && p ? Math.round(q * p) : '');
         const area = projectAreaM2;
-        const m2text = itemTotal && area > 0 ? '$' + fmtNum(itemTotal / area) + '/m²' : (area === 0 ? 'Sin área' : '—');
+        const m2text = p && area > 0 ? '$' + fmtNum(p / area) + '/m²' : (area === 0 ? 'Sin área' : '—');
         return `
         <div class="gap-2 items-center text-sm" style="display:grid;grid-template-columns:3fr 2fr 1fr 1fr 2fr 2fr 1fr 1fr" data-item="${i}">
           <div style="position:relative">

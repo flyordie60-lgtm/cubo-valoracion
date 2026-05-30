@@ -90,10 +90,10 @@ async def get_price_comparisons(db: AsyncSession, items: list, supplier: str = N
             percent_diff = round(((unit_price - avg_price) / avg_price) * 100, 1)
 
         # current price per m²
-        item_total = item.get("total")
+        item_unit_price = item.get("unit_price")
         current_price_m2_val = None
-        if item_total and area_m2 and area_m2 > 0:
-            current_price_m2_val = round(item_total / area_m2, 2)
+        if item_unit_price and area_m2 and area_m2 > 0:
+            current_price_m2_val = round(item_unit_price / area_m2, 2)
 
         comparisons.append(PriceComparison(
             item_description=desc,
@@ -202,8 +202,8 @@ async def save_invoice(
         for item in invoice_data.items:
             if item.description and item.unit_price is not None:
                 price_per_m2_val = None
-                if item.total and invoice_data.area_m2 and invoice_data.area_m2 > 0:
-                    price_per_m2_val = round(item.total / invoice_data.area_m2, 2)
+                if item.unit_price and invoice_data.area_m2 and invoice_data.area_m2 > 0:
+                    price_per_m2_val = round(item.unit_price / invoice_data.area_m2, 2)
                 ph = PriceHistory(
                     invoice_id=invoice.id,
                     project_id=project_id,
